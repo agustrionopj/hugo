@@ -1,4 +1,4 @@
-// Copyright 2015 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,13 +21,34 @@ import (
 
 	"github.com/spf13/viper"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/miekg/mmark"
 	"github.com/russross/blackfriday"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 const tstHTMLContent = "<!DOCTYPE html><html><head><script src=\"http://two/foobar.js\"></script></head><body><nav><ul><li hugo-nav=\"section_0\"></li><li hugo-nav=\"section_1\"></li></ul></nav><article>content <a href=\"http://two/foobar\">foobar</a>. Follow up</article><p>This is some text.<br>And some more.</p></body></html>"
+
+func TestTrimShortHTML(t *testing.T) {
+	tests := []struct {
+		input, output []byte
+	}{
+		{[]byte(""), []byte("")},
+		{[]byte("Plain text"), []byte("Plain text")},
+		{[]byte("  \t\n Whitespace text\n\n"), []byte("Whitespace text")},
+		{[]byte("<p>Simple paragraph</p>"), []byte("Simple paragraph")},
+		{[]byte("\n  \n \t  <p> \t Whitespace\nHTML  \n\t </p>\n\t"), []byte("Whitespace\nHTML")},
+		{[]byte("<p>Multiple</p><p>paragraphs</p>"), []byte("<p>Multiple</p><p>paragraphs</p>")},
+		{[]byte("<p>Nested<p>paragraphs</p></p>"), []byte("<p>Nested<p>paragraphs</p></p>")},
+	}
+
+	c := newTestContentSpec()
+	for i, test := range tests {
+		output := c.TrimShortHTML(test.input)
+		if !bytes.Equal(test.output, output) {
+			t.Errorf("Test %d failed. Expected %q got %q", i, test.output, output)
+		}
+	}
+}
 
 func TestStripHTML(t *testing.T) {
 	type test struct {
@@ -68,17 +89,19 @@ func BenchmarkStripHTML(b *testing.B) {
 }
 
 func TestStripEmptyNav(t *testing.T) {
+	c := qt.New(t)
 	cleaned := stripEmptyNav([]byte("do<nav>\n</nav>\n\nbedobedo"))
-	assert.Equal(t, []byte("dobedobedo"), cleaned)
+	c.Assert(cleaned, qt.DeepEquals, []byte("dobedobedo"))
 }
 
 func TestBytesToHTML(t *testing.T) {
-	assert.Equal(t, template.HTML("dobedobedo"), BytesToHTML([]byte("dobedobedo")))
+	c := qt.New(t)
+	c.Assert(BytesToHTML([]byte("dobedobedo")), qt.Equals, template.HTML("dobedobedo"))
 }
 
 func TestNewContentSpec(t *testing.T) {
 	cfg := viper.New()
-	assert := require.New(t)
+	c := qt.New(t)
 
 	cfg.Set("summaryLength", 32)
 	cfg.Set("buildFuture", true)
@@ -87,11 +110,11 @@ func TestNewContentSpec(t *testing.T) {
 
 	spec, err := NewContentSpec(cfg)
 
-	assert.NoError(err)
-	assert.Equal(32, spec.summaryLength)
-	assert.True(spec.BuildFuture)
-	assert.True(spec.BuildExpired)
-	assert.True(spec.BuildDrafts)
+	c.Assert(err, qt.IsNil)
+	c.Assert(spec.summaryLength, qt.Equals, 32)
+	c.Assert(spec.BuildFuture, qt.Equals, true)
+	c.Assert(spec.BuildExpired, qt.Equals, true)
+	c.Assert(spec.BuildDrafts, qt.Equals, true)
 
 }
 
@@ -181,7 +204,7 @@ func TestTruncateWordsByRune(t *testing.T) {
 
 func TestGetHTMLRendererFlags(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	renderer := c.getHTMLRenderer(blackfriday.HTML_USE_XHTML, ctx)
 	flags := renderer.GetFlags()
 	if flags&blackfriday.HTML_USE_XHTML != blackfriday.HTML_USE_XHTML {
@@ -210,7 +233,7 @@ func TestGetHTMLRendererAllFlags(t *testing.T) {
 		{blackfriday.HTML_SMARTYPANTS_LATEX_DASHES},
 	}
 	defaultFlags := blackfriday.HTML_USE_XHTML
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Config.AngledQuotes = true
 	ctx.Config.Fractions = true
 	ctx.Config.HrefTargetBlank = true
@@ -235,7 +258,7 @@ func TestGetHTMLRendererAllFlags(t *testing.T) {
 
 func TestGetHTMLRendererAnchors(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.DocumentID = "testid"
 	ctx.Config.PlainIDAnchors = false
 
@@ -259,7 +282,7 @@ func TestGetHTMLRendererAnchors(t *testing.T) {
 
 func TestGetMmarkHTMLRenderer(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.DocumentID = "testid"
 	ctx.Config.PlainIDAnchors = false
 	actualRenderer := c.getMmarkHTMLRenderer(0, ctx)
@@ -283,7 +306,7 @@ func TestGetMmarkHTMLRenderer(t *testing.T) {
 
 func TestGetMarkdownExtensionsMasksAreRemovedFromExtensions(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Config.Extensions = []string{"headerId"}
 	ctx.Config.ExtensionsMask = []string{"noIntraEmphasis"}
 
@@ -298,7 +321,7 @@ func TestGetMarkdownExtensionsByDefaultAllExtensionsAreEnabled(t *testing.T) {
 		testFlag int
 	}
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Config.Extensions = []string{""}
 	ctx.Config.ExtensionsMask = []string{""}
 	allExtensions := []data{
@@ -330,7 +353,7 @@ func TestGetMarkdownExtensionsByDefaultAllExtensionsAreEnabled(t *testing.T) {
 
 func TestGetMarkdownExtensionsAddingFlagsThroughRenderingContext(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Config.Extensions = []string{"definitionLists"}
 	ctx.Config.ExtensionsMask = []string{""}
 
@@ -342,7 +365,7 @@ func TestGetMarkdownExtensionsAddingFlagsThroughRenderingContext(t *testing.T) {
 
 func TestGetMarkdownRenderer(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Content = []byte("testContent")
 	actualRenderedMarkdown := c.markdownRender(ctx)
 	expectedRenderedMarkdown := []byte("<p>testContent</p>\n")
@@ -353,7 +376,7 @@ func TestGetMarkdownRenderer(t *testing.T) {
 
 func TestGetMarkdownRendererWithTOC(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{RenderTOC: true, Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{RenderTOC: true, Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Content = []byte("testContent")
 	actualRenderedMarkdown := c.markdownRender(ctx)
 	expectedRenderedMarkdown := []byte("<nav>\n</nav>\n\n<p>testContent</p>\n")
@@ -368,7 +391,7 @@ func TestGetMmarkExtensions(t *testing.T) {
 		testFlag int
 	}
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Config.Extensions = []string{"tables"}
 	ctx.Config.ExtensionsMask = []string{""}
 	allExtensions := []data{
@@ -397,7 +420,7 @@ func TestGetMmarkExtensions(t *testing.T) {
 
 func TestMmarkRender(t *testing.T) {
 	c := newTestContentSpec()
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	ctx.Content = []byte("testContent")
 	actualRenderedMarkdown := c.mmarkRender(ctx)
 	expectedRenderedMarkdown := []byte("<p>testContent</p>\n")
@@ -479,16 +502,6 @@ func BenchmarkTotalWords(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		wordCount := TotalWords(totalWordsBenchmarkString)
-		if wordCount != 400 {
-			b.Fatal("Wordcount error")
-		}
-	}
-}
-
-func BenchmarkTotalWordsOld(b *testing.B) {
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		wordCount := totalWordsOld(totalWordsBenchmarkString)
 		if wordCount != 400 {
 			b.Fatal("Wordcount error")
 		}

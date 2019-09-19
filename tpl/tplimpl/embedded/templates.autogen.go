@@ -1,4 +1,4 @@
-// Copyright 2018 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,7 +19,15 @@ package embedded
 // EmbeddedTemplates represents all embedded templates.
 var EmbeddedTemplates = [][2]string{
 	{`_default/robots.txt`, `User-agent: *`},
-	{`_default/rss.xml`, `<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+	{`_default/rss.xml`, `{{- $pctx := . -}}
+{{- if .IsHome -}}{{ $pctx = .Site }}{{- end -}}
+{{- $pages := $pctx.RegularPages -}}
+{{- $limit := .Site.Config.Services.RSS.Limit -}}
+{{- if ge $limit 1 -}}
+{{- $pages = $pages | first $limit -}}
+{{- end -}}
+{{- printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?>" | safeHTML }}
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
     <title>{{ if eq  .Title  .Site.Title }}{{ .Site.Title }}{{ else }}{{ with .Title }}{{.}} on {{ end }}{{ .Site.Title }}{{ end }}</title>
     <link>{{ .Permalink }}</link>
@@ -33,7 +41,7 @@ var EmbeddedTemplates = [][2]string{
     {{ with .OutputFormats.Get "RSS" }}
 	{{ printf "<atom:link href=%q rel=\"self\" type=%q />" .Permalink .MediaType | safeHTML }}
     {{ end }}
-    {{ range .Data.Pages }}
+    {{ range $pages }}
     <item>
       <title>{{ .Title }}</title>
       <link>{{ .Permalink }}</link>
@@ -45,7 +53,8 @@ var EmbeddedTemplates = [][2]string{
     {{ end }}
   </channel>
 </rss>`},
-	{`_default/sitemap.xml`, `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+	{`_default/sitemap.xml`, `{{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?>" | safeHTML }}
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   {{ range .Data.Pages }}
   <url>
@@ -55,18 +64,19 @@ var EmbeddedTemplates = [][2]string{
     <priority>{{ .Sitemap.Priority }}</priority>{{ end }}{{ if .IsTranslated }}{{ range .Translations }}
     <xhtml:link
                 rel="alternate"
-                hreflang="{{ .Lang }}"
+                hreflang="{{ .Language.Lang }}"
                 href="{{ .Permalink }}"
                 />{{ end }}
     <xhtml:link
                 rel="alternate"
-                hreflang="{{ .Lang }}"
+                hreflang="{{ .Language.Lang }}"
                 href="{{ .Permalink }}"
                 />{{ end }}
   </url>
   {{ end }}
 </urlset>`},
-	{`_default/sitemapindex.xml`, `<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+	{`_default/sitemapindex.xml`, `{{ printf "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"yes\" ?>" | safeHTML }}
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 	{{ range . }}
 	<sitemap>
 	   	<loc>{{ .SitemapAbsURL }}</loc>
@@ -77,14 +87,14 @@ var EmbeddedTemplates = [][2]string{
 	{{ end }}
 </sitemapindex>
 `},
-	{`disqus.html`, `{{- $pc := .Page.Site.Config.Privacy.Disqus -}}
+	{`disqus.html`, `{{- $pc := .Site.Config.Privacy.Disqus -}}
 {{- if not $pc.Disable -}}
 {{ if .Site.DisqusShortname }}<div id="disqus_thread"></div>
 <script type="application/javascript">
     var disqus_config = function () {
-    {{with .GetParam "disqus_identifier" }}this.page.identifier = '{{ . }}';{{end}}
-    {{with .GetParam "disqus_title" }}this.page.title = '{{ . }}';{{end}}
-    {{with .GetParam "disqus_url" }}this.page.url = '{{ . | html  }}';{{end}}
+    {{with .Params.disqus_identifier }}this.page.identifier = '{{ . }}';{{end}}
+    {{with .Params.disqus_title }}this.page.title = '{{ . }}';{{end}}
+    {{with .Params.disqus_url }}this.page.url = '{{ . | html  }}';{{end}}
     };
     (function() {
         if (["localhost", "127.0.0.1"].indexOf(window.location.hostname) != -1) {
@@ -179,14 +189,15 @@ if (!doNotTrack) {
 <meta property="og:image" content="{{ . | absURL }}" />
 {{ end }}{{ end }}
 
+{{- $iso8601 := "2006-01-02T15:04:05-07:00" -}}
 {{- if .IsPage }}
-{{- if not .PublishDate.IsZero }}<meta property="article:published_time" content="{{ .PublishDate.Format "2006-01-02T15:04:05-07:00" | safeHTMLAttr }}"/>
-{{ else if not .Date.IsZero }}<meta property="article:published_time" content="{{ .Date.Format "2006-01-02T15:04:05-07:00" | safeHTMLAttr }}"/>
+{{- if not .PublishDate.IsZero }}<meta property="article:published_time" {{ .PublishDate.Format $iso8601 | printf "content=%q" | safeHTMLAttr }} />
+{{ else if not .Date.IsZero }}<meta property="article:published_time" {{ .Date.Format $iso8601 | printf "content=%q" | safeHTMLAttr }} />
 {{ end }}
-{{- if not .Lastmod.IsZero }}<meta property="article:modified_time" content="{{ .Lastmod.Format "2006-01-02T15:04:05-07:00" | safeHTMLAttr }}"/>{{ end }}
+{{- if not .Lastmod.IsZero }}<meta property="article:modified_time" {{ .Lastmod.Format $iso8601 | printf "content=%q" | safeHTMLAttr }} />{{ end }}
 {{- else }}
 {{- if not .Date.IsZero }}
-<meta property="og:updated_time" content="{{ .Date.Format "2006-01-02T15:04:05-07:00" | safeHTMLAttr }}"/>
+<meta property="og:updated_time" {{ .Date.Format $iso8601 | printf "content=%q" | safeHTMLAttr }} />
 {{- end }}
 {{- end }}{{/* .IsPage */}}
 
@@ -229,28 +240,29 @@ if (!doNotTrack) {
     </li>
     {{ end }}
     <li class="page-item{{ if not $pag.HasPrev }} disabled{{ end }}">
-    <a href="{{ if $pag.HasPrev }}{{ $pag.Prev.URL }}{{ end }}" class="page-link" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
+    <a {{ if $pag.HasPrev }}href="{{ $pag.Prev.URL }}"{{ end }} class="page-link" aria-label="Previous"><span aria-hidden="true">&laquo;</span></a>
     </li>
-    {{ $.Scratch.Set "__paginator.ellipsed" false }}
+    {{ $ellipsed := false }}
+    {{ $shouldEllipse := false }}
     {{ range $pag.Pagers }}
     {{ $right := sub .TotalPages .PageNumber }}
     {{ $showNumber := or (le .PageNumber 3) (eq $right 0) }}
     {{ $showNumber := or $showNumber (and (gt .PageNumber (sub $pag.PageNumber 2)) (lt .PageNumber (add $pag.PageNumber 2)))  }}
     {{ if $showNumber }}
-        {{ $.Scratch.Set "__paginator.ellipsed" false }}
-        {{ $.Scratch.Set "__paginator.shouldEllipse" false }}
+        {{ $ellipsed = false }}
+        {{ $shouldEllipse = false }}
     {{ else }}
-        {{ $.Scratch.Set "__paginator.shouldEllipse" (not ($.Scratch.Get "__paginator.ellipsed") ) }}
-        {{ $.Scratch.Set "__paginator.ellipsed" true }}
+        {{ $shouldEllipse = not $ellipsed }}
+        {{ $ellipsed = true }}
     {{ end }}
     {{ if $showNumber }}
     <li class="page-item{{ if eq . $pag }} active{{ end }}"><a class="page-link" href="{{ .URL }}">{{ .PageNumber }}</a></li>
-    {{ else if ($.Scratch.Get "__paginator.shouldEllipse") }}
+    {{ else if $shouldEllipse }}
     <li class="page-item disabled"><span aria-hidden="true">&nbsp;&hellip;&nbsp;</span></li>
     {{ end }}
     {{ end }}
     <li class="page-item{{ if not $pag.HasNext }} disabled{{ end }}">
-    <a href="{{ if $pag.HasNext }}{{ $pag.Next.URL }}{{ end }}" class="page-link" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
+    <a {{ if $pag.HasNext }}href="{{ $pag.Next.URL }}"{{ end }} class="page-link" aria-label="Next"><span aria-hidden="true">&raquo;</span></a>
     </li>
     {{ with $pag.Last }}
     <li class="page-item">
@@ -258,9 +270,9 @@ if (!doNotTrack) {
     </li>
     {{ end }}
 </ul>
-{{ end }}`},
-	{`schema.html`, `{{ with .Site.Social.GooglePlus }}<link rel="publisher" href="{{ . }}"/>{{ end }}
-<meta itemprop="name" content="{{ .Title }}">
+{{ end }}
+`},
+	{`schema.html`, `<meta itemprop="name" content="{{ .Title }}">
 <meta itemprop="description" content="{{ with .Description }}{{ . }}{{ else }}{{if .IsPage}}{{ .Summary }}{{ else }}{{ with .Site.Params.description }}{{ . }}{{ end }}{{ end }}{{ end }}">
 
 {{if .IsPage}}{{ $ISO8601 := "2006-01-02T15:04:05-07:00" }}{{ if not .PublishDate.IsZero }}
@@ -338,7 +350,8 @@ if (!doNotTrack) {
     {{- end }}
 </figure>
 `},
-	{`shortcodes/gist.html`, `<script type="application/javascript" src="//gist.github.com/{{ index .Params 0 }}/{{ index .Params 1 }}.js{{if len .Params | eq 3 }}?file={{ index .Params 2 }}{{end}}"></script>`},
+	{`shortcodes/gist.html`, `<script type="application/javascript" src="https://gist.github.com/{{ index .Params 0 }}/{{ index .Params 1 }}.js{{if len .Params | eq 3 }}?file={{ index .Params 2 }}{{end}}"></script>
+`},
 	{`shortcodes/highlight.html`, `{{ if len .Params | eq 2 }}{{ highlight (trim .Inner "\n\r") (.Get 0) (.Get 1) }}{{ else }}{{ highlight (trim .Inner "\n\r") (.Get 0) "" }}{{ end }}`},
 	{`shortcodes/instagram.html`, `{{- $pc := .Page.Site.Config.Privacy.Instagram -}}
 {{- if not $pc.Disable -}}
@@ -453,10 +466,10 @@ if (!doNotTrack) {
 {{ template "_internal/shortcodes/vimeo_simple.html" . }}
 {{- else -}}
 {{ if .IsNamedParams }}<div {{ if .Get "class" }}class="{{ .Get "class" }}"{{ else }}style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;"{{ end }}>
-  <iframe src="//player.vimeo.com/video/{{ .Get "id" }}" {{ if not (.Get "class") }}style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" {{ end }}webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+  <iframe src="https://player.vimeo.com/video/{{ .Get "id" }}" {{ if not (.Get "class") }}style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" {{ end }}webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
  </div>{{ else }}
 <div {{ if len .Params | eq 2 }}class="{{ .Get 1 }}"{{ else }}style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;"{{ end }}>
-  <iframe src="//player.vimeo.com/video/{{ .Get 0 }}" {{ if len .Params | eq 1 }}style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" {{ end }}webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+  <iframe src="https://player.vimeo.com/video/{{ .Get 0 }}" {{ if len .Params | eq 1 }}style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" {{ end }}webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
  </div>
 {{ end }}
 {{- end -}}
@@ -473,7 +486,7 @@ if (!doNotTrack) {
 {{ $secondClass := "s_video_simple" }}
 <div class="{{ $secondClass }} {{ $class }}">
 {{- with $item }}
-<a href="{{ .provider_url }}{{ .video_id | safeHTMLAttr }}" target="_blank">
+<a href="{{ .provider_url }}{{ .video_id }}" target="_blank">
 {{ $thumb := .thumbnail_url }}
 {{ $original := $thumb | replaceRE "(_.*\\.)" "." }}
 <img src="{{ $thumb }}" srcset="{{ $thumb }} 1x, {{ $original }} 2x" alt="{{ .title }}">
@@ -486,7 +499,7 @@ if (!doNotTrack) {
 {{- $id := .Get "id" | default (.Get 0) -}}
 {{- $class := .Get "class" | default (.Get 1) }}
 <div {{ with $class }}class="{{ . }}"{{ else }}style="position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;"{{ end }}>
-  <iframe src="//{{ $ytHost }}/embed/{{ $id }}{{ with .Get "autoplay" }}{{ if eq . "true" }}?autoplay=1{{ end }}{{ end }}" {{ if not $class }}style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" {{ end }}allowfullscreen title="YouTube Video"></iframe>
+  <iframe src="https://{{ $ytHost }}/embed/{{ $id }}{{ with .Get "autoplay" }}{{ if eq . "true" }}?autoplay=1{{ end }}{{ end }}" {{ if not $class }}style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border:0;" {{ end }}allowfullscreen title="YouTube Video"></iframe>
 </div>
 {{ end -}}
 `},

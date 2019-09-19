@@ -7,13 +7,14 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/cache/filecache"
-	"github.com/gohugoio/hugo/common/hugo"
 	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
 	"github.com/gohugoio/hugo/langs"
 	"github.com/gohugoio/hugo/media"
+	"github.com/gohugoio/hugo/resources/page"
+
 	"github.com/gohugoio/hugo/metrics"
 	"github.com/gohugoio/hugo/output"
 	"github.com/gohugoio/hugo/resources"
@@ -32,6 +33,9 @@ type Deps struct {
 
 	// Used to log errors that may repeat itself many times.
 	DistinctErrorLog *helpers.DistinctLogger
+
+	// Used to log warnings that may repeat itself many times.
+	DistinctWarningLog *helpers.DistinctLogger
 
 	// The templates to use. This will usually implement the full tpl.TemplateHandler.
 	Tmpl tpl.TemplateFinder `json:"-"`
@@ -67,7 +71,7 @@ type Deps struct {
 	Language *langs.Language
 
 	// The site building.
-	Site hugo.Site
+	Site page.Site
 
 	// All the output formats available for the current site.
 	OutputFormatsConfig output.Formats
@@ -155,11 +159,11 @@ func (d *Deps) TemplateHandler() tpl.TemplateHandler {
 func (d *Deps) LoadResources() error {
 	// Note that the translations need to be loaded before the templates.
 	if err := d.translationProvider.Update(d); err != nil {
-		return err
+		return errors.Wrap(err, "loading translations")
 	}
 
 	if err := d.templateProvider.Update(d); err != nil {
-		return err
+		return errors.Wrap(err, "loading templates")
 	}
 
 	return nil
@@ -203,10 +207,10 @@ func New(cfg DepsCfg) (*Deps, error) {
 		cfg.OutputFormats = output.DefaultFormats
 	}
 
-	ps, err := helpers.NewPathSpec(fs, cfg.Language)
+	ps, err := helpers.NewPathSpec(fs, cfg.Language, logger)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "create PathSpec")
 	}
 
 	fileCaches, err := filecache.NewCaches(ps)
@@ -232,11 +236,13 @@ func New(cfg DepsCfg) (*Deps, error) {
 	}
 
 	distinctErrorLogger := helpers.NewDistinctLogger(logger.ERROR)
+	distinctWarnLogger := helpers.NewDistinctLogger(logger.WARN)
 
 	d := &Deps{
 		Fs:                  fs,
 		Log:                 logger,
 		DistinctErrorLog:    distinctErrorLogger,
+		DistinctWarningLog:  distinctWarnLogger,
 		templateProvider:    cfg.TemplateProvider,
 		translationProvider: cfg.TranslationProvider,
 		WithTemplate:        cfg.WithTemplate,
@@ -266,7 +272,7 @@ func (d Deps) ForLanguage(cfg DepsCfg, onCreated func(d *Deps) error) (*Deps, er
 	l := cfg.Language
 	var err error
 
-	d.PathSpec, err = helpers.NewPathSpecWithBaseBaseFsProvided(d.Fs, l, d.BaseFs)
+	d.PathSpec, err = helpers.NewPathSpecWithBaseBaseFsProvided(d.Fs, l, d.Log, d.BaseFs)
 	if err != nil {
 		return nil, err
 	}
@@ -325,7 +331,7 @@ type DepsCfg struct {
 	Language *langs.Language
 
 	// The Site in use
-	Site hugo.Site
+	Site page.Site
 
 	// The configuration to use.
 	Cfg config.Provider

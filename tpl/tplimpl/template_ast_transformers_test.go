@@ -1,4 +1,4 @@
-// Copyright 2016 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,17 +15,20 @@ package tplimpl
 import (
 	"bytes"
 	"fmt"
-	"testing"
-
 	"html/template"
+	"testing"
+	"time"
+
+	"github.com/gohugoio/hugo/tpl"
 
 	"github.com/spf13/cast"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 var (
 	testFuncs = map[string]interface{}{
+		"getif":  func(v interface{}) interface{} { return v },
 		"ToTime": func(v interface{}) interface{} { return cast.ToTime(v) },
 		"First":  func(v ...interface{}) interface{} { return v[0] },
 		"Echo":   func(v interface{}) interface{} { return v },
@@ -172,76 +175,78 @@ PARAMS SITE GLOBAL3: {{ $site.Params.LOWER }}
 
 func TestParamsKeysToLower(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	require.Error(t, applyTemplateTransformers(nil, nil))
+	_, err := applyTemplateTransformers(templateUndefined, nil, nil)
+	c.Assert(err, qt.Not(qt.IsNil))
 
 	templ, err := template.New("foo").Funcs(testFuncs).Parse(paramsTempl)
 
-	require.NoError(t, err)
+	c.Assert(err, qt.IsNil)
 
-	c := newTemplateContext(createParseTreeLookup(templ))
+	ctx := newTemplateContext(createParseTreeLookup(templ))
 
-	require.Equal(t, -1, c.decl.indexOfReplacementStart([]string{}))
+	c.Assert(ctx.decl.indexOfReplacementStart([]string{}), qt.Equals, -1)
 
-	c.paramsKeysToLower(templ.Tree.Root)
+	ctx.applyTransformations(templ.Tree.Root)
 
 	var b bytes.Buffer
 
-	require.NoError(t, templ.Execute(&b, paramsData))
+	c.Assert(templ.Execute(&b, paramsData), qt.IsNil)
 
 	result := b.String()
 
-	require.Contains(t, result, "P1: P1L")
-	require.Contains(t, result, "P1_2: P1L")
-	require.Contains(t, result, "P1_3: P1L")
-	require.Contains(t, result, "P1_4: P1L")
-	require.Contains(t, result, "P2: P2L")
-	require.Contains(t, result, "P2_2: P2L")
-	require.Contains(t, result, "P2_3: P2L")
-	require.Contains(t, result, "P2_4: P2L")
-	require.Contains(t, result, "P22: P22L")
-	require.Contains(t, result, "P22_nested: P22L_nested")
-	require.Contains(t, result, "P3: P3H")
-	require.Contains(t, result, "P3_2: P3H")
-	require.Contains(t, result, "P3_3: P3H")
-	require.Contains(t, result, "P3_4: P3H")
-	require.Contains(t, result, "P4: 13")
-	require.Contains(t, result, "P5: P1L")
-	require.Contains(t, result, "P5_2: P2L")
+	c.Assert(result, qt.Contains, "P1: P1L")
+	c.Assert(result, qt.Contains, "P1_2: P1L")
+	c.Assert(result, qt.Contains, "P1_3: P1L")
+	c.Assert(result, qt.Contains, "P1_4: P1L")
+	c.Assert(result, qt.Contains, "P2: P2L")
+	c.Assert(result, qt.Contains, "P2_2: P2L")
+	c.Assert(result, qt.Contains, "P2_3: P2L")
+	c.Assert(result, qt.Contains, "P2_4: P2L")
+	c.Assert(result, qt.Contains, "P22: P22L")
+	c.Assert(result, qt.Contains, "P22_nested: P22L_nested")
+	c.Assert(result, qt.Contains, "P3: P3H")
+	c.Assert(result, qt.Contains, "P3_2: P3H")
+	c.Assert(result, qt.Contains, "P3_3: P3H")
+	c.Assert(result, qt.Contains, "P3_4: P3H")
+	c.Assert(result, qt.Contains, "P4: 13")
+	c.Assert(result, qt.Contains, "P5: P1L")
+	c.Assert(result, qt.Contains, "P5_2: P2L")
 
-	require.Contains(t, result, "IF: P1L")
-	require.Contains(t, result, "ELSE: P1L")
+	c.Assert(result, qt.Contains, "IF: P1L")
+	c.Assert(result, qt.Contains, "ELSE: P1L")
 
-	require.Contains(t, result, "WITH: P1L")
+	c.Assert(result, qt.Contains, "WITH: P1L")
 
-	require.Contains(t, result, "RANGE: 3: P1L")
+	c.Assert(result, qt.Contains, "RANGE: 3: P1L")
 
-	require.Contains(t, result, "Hi There")
+	c.Assert(result, qt.Contains, "Hi There")
 
 	// Issue #2740
-	require.Contains(t, result, "F1: themes/P2L-theme")
-	require.Contains(t, result, "F2: themes/P2L-theme")
-	require.Contains(t, result, "F3: themes/P2L-theme")
+	c.Assert(result, qt.Contains, "F1: themes/P2L-theme")
+	c.Assert(result, qt.Contains, "F2: themes/P2L-theme")
+	c.Assert(result, qt.Contains, "F3: themes/P2L-theme")
 
-	require.Contains(t, result, "PSLICE: PSLICE1|PSLICE3|")
-	require.Contains(t, result, "PARAMS STRING: foo:.Params.toc_hide:[!= true]")
-	require.Contains(t, result, "PARAMS STRING2: foo:.Params.toc_hide:[!= true]")
-	require.Contains(t, result, "PARAMS STRING3: .Params.TOC_HIDE:!=:[P1L]")
+	c.Assert(result, qt.Contains, "PSLICE: PSLICE1|PSLICE3|")
+	c.Assert(result, qt.Contains, "PARAMS STRING: foo:.Params.toc_hide:[!= true]")
+	c.Assert(result, qt.Contains, "PARAMS STRING2: foo:.Params.toc_hide:[!= true]")
+	c.Assert(result, qt.Contains, "PARAMS STRING3: .Params.TOC_HIDE:!=:[P1L]")
 
 	// Issue #5094
-	require.Contains(t, result, "PARAMS COMPOSITE: [1 3]")
+	c.Assert(result, qt.Contains, "PARAMS COMPOSITE: [1 3]")
 
 	// Issue #5068
-	require.Contains(t, result, "PCurrentSection: pcurrentsection")
+	c.Assert(result, qt.Contains, "PCurrentSection: pcurrentsection")
 
 	// Issue #5541
-	require.Contains(t, result, "PARAMS TIME: 1972-02-28")
-	require.Contains(t, result, "PARAMS TIME2: 1972-02-28")
+	c.Assert(result, qt.Contains, "PARAMS TIME: 1972-02-28")
+	c.Assert(result, qt.Contains, "PARAMS TIME2: 1972-02-28")
 
 	// Issue ##5615
-	require.Contains(t, result, "PARAMS SITE GLOBAL1: global-site")
-	require.Contains(t, result, "PARAMS SITE GLOBAL2: global-site")
-	require.Contains(t, result, "PARAMS SITE GLOBAL3: global-site")
+	c.Assert(result, qt.Contains, "PARAMS SITE GLOBAL1: global-site")
+	c.Assert(result, qt.Contains, "PARAMS SITE GLOBAL2: global-site")
+	c.Assert(result, qt.Contains, "PARAMS SITE GLOBAL3: global-site")
 
 }
 
@@ -265,14 +270,16 @@ func BenchmarkTemplateParamsKeysToLower(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		c := newTemplateContext(createParseTreeLookup(templates[i]))
-		c.paramsKeysToLower(templ.Tree.Root)
+		c.applyTransformations(templ.Tree.Root)
 	}
 }
 
 func TestParamsKeysToLowerVars(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
+
 	var (
-		ctx = map[string]interface{}{
+		data = map[string]interface{}{
 			"Params": map[string]interface{}{
 				"colors": map[string]interface{}{
 					"blue": "Amber",
@@ -300,31 +307,32 @@ Pretty First3: {{ $__amber_4.COLORS.PRETTY.FIRST}}
 
 	templ, err := template.New("foo").Parse(paramsTempl)
 
-	require.NoError(t, err)
+	c.Assert(err, qt.IsNil)
 
-	c := newTemplateContext(createParseTreeLookup(templ))
+	ctx := newTemplateContext(createParseTreeLookup(templ))
 
-	c.paramsKeysToLower(templ.Tree.Root)
+	ctx.applyTransformations(templ.Tree.Root)
 
 	var b bytes.Buffer
 
-	require.NoError(t, templ.Execute(&b, ctx))
+	c.Assert(templ.Execute(&b, data), qt.IsNil)
 
 	result := b.String()
 
-	require.Contains(t, result, "Color: Amber")
-	require.Contains(t, result, "Blue: Amber")
-	require.Contains(t, result, "Pretty First1: Indigo")
-	require.Contains(t, result, "Pretty First2: Indigo")
-	require.Contains(t, result, "Pretty First3: Indigo")
+	c.Assert(result, qt.Contains, "Color: Amber")
+	c.Assert(result, qt.Contains, "Blue: Amber")
+	c.Assert(result, qt.Contains, "Pretty First1: Indigo")
+	c.Assert(result, qt.Contains, "Pretty First2: Indigo")
+	c.Assert(result, qt.Contains, "Pretty First3: Indigo")
 
 }
 
 func TestParamsKeysToLowerInBlockTemplate(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	var (
-		ctx = map[string]interface{}{
+		data = map[string]interface{}{
 			"Params": map[string]interface{}{
 				"lower": "P1L",
 			},
@@ -340,28 +348,29 @@ P2: {{ .Params.LOWER }}
 	)
 
 	masterTpl, err := template.New("foo").Parse(master)
-	require.NoError(t, err)
+	c.Assert(err, qt.IsNil)
 
 	overlayTpl, err := template.Must(masterTpl.Clone()).Parse(overlay)
-	require.NoError(t, err)
+	c.Assert(err, qt.IsNil)
 	overlayTpl = overlayTpl.Lookup(overlayTpl.Name())
 
-	c := newTemplateContext(createParseTreeLookup(overlayTpl))
+	ctx := newTemplateContext(createParseTreeLookup(overlayTpl))
 
-	c.paramsKeysToLower(overlayTpl.Tree.Root)
+	ctx.applyTransformations(overlayTpl.Tree.Root)
 
 	var b bytes.Buffer
 
-	require.NoError(t, overlayTpl.Execute(&b, ctx))
+	c.Assert(overlayTpl.Execute(&b, data), qt.IsNil)
 
 	result := b.String()
 
-	require.Contains(t, result, "P1: P1L")
-	require.Contains(t, result, "P2: P1L")
+	c.Assert(result, qt.Contains, "P1: P1L")
+	c.Assert(result, qt.Contains, "P2: P1L")
 }
 
 // Issue #2927
 func TestTransformRecursiveTemplate(t *testing.T) {
+	c := qt.New(t)
 
 	recursive := `
 {{ define "menu-nodes" }}
@@ -374,9 +383,174 @@ func TestTransformRecursiveTemplate(t *testing.T) {
 `
 
 	templ, err := template.New("foo").Parse(recursive)
-	require.NoError(t, err)
+	c.Assert(err, qt.IsNil)
 
-	c := newTemplateContext(createParseTreeLookup(templ))
-	c.paramsKeysToLower(templ.Tree.Root)
+	ctx := newTemplateContext(createParseTreeLookup(templ))
+	ctx.applyTransformations(templ.Tree.Root)
+
+}
+
+type I interface {
+	Method0()
+}
+
+type T struct {
+	NonEmptyInterfaceTypedNil I
+}
+
+func (T) Method0() {
+}
+
+func TestInsertIsZeroFunc(t *testing.T) {
+	t.Parallel()
+
+	c := qt.New(t)
+
+	var (
+		ctx = map[string]interface{}{
+			"True":     true,
+			"Now":      time.Now(),
+			"TimeZero": time.Time{},
+			"T":        &T{NonEmptyInterfaceTypedNil: (*T)(nil)},
+		}
+
+		templ1 = `
+{{ if .True }}.True: TRUE{{ else }}.True: FALSE{{ end }}
+{{ if .TimeZero }}.TimeZero1: TRUE{{ else }}.TimeZero1: FALSE{{ end }}
+{{ if (.TimeZero) }}.TimeZero2: TRUE{{ else }}.TimeZero2: FALSE{{ end }}
+{{ if not .TimeZero }}.TimeZero3: TRUE{{ else }}.TimeZero3: FALSE{{ end }}
+{{ if .Now }}.Now: TRUE{{ else }}.Now: FALSE{{ end }}
+{{ with .TimeZero }}.TimeZero1 with: {{ . }}{{ else }}.TimeZero1 with: FALSE{{ end }}
+{{ template "mytemplate" . }}
+{{ if .T.NonEmptyInterfaceTypedNil }}.NonEmptyInterfaceTypedNil: TRUE{{ else }}.NonEmptyInterfaceTypedNil: FALSE{{ end }}
+
+{{ template "other-file-template" . }}
+
+{{ define "mytemplate" }}
+{{ if .TimeZero }}.TimeZero1: mytemplate: TRUE{{ else }}.TimeZero1: mytemplate: FALSE{{ end }}
+{{ end }}
+
+`
+
+		// https://github.com/gohugoio/hugo/issues/5865
+		templ2 = `{{ define "other-file-template" }}
+{{ if .TimeZero }}.TimeZero1: other-file-template: TRUE{{ else }}.TimeZero1: other-file-template: FALSE{{ end }}
+{{ end }}		
+`
+	)
+
+	d := newD(c)
+	h := d.Tmpl.(tpl.TemplateHandler)
+
+	// HTML templates
+	c.Assert(h.AddTemplate("mytemplate.html", templ1), qt.IsNil)
+	c.Assert(h.AddTemplate("othertemplate.html", templ2), qt.IsNil)
+
+	// Text templates
+	c.Assert(h.AddTemplate("_text/mytexttemplate.txt", templ1), qt.IsNil)
+	c.Assert(h.AddTemplate("_text/myothertexttemplate.txt", templ2), qt.IsNil)
+
+	c.Assert(h.MarkReady(), qt.IsNil)
+
+	for _, name := range []string{"mytemplate.html", "mytexttemplate.txt"} {
+		tt, _ := d.Tmpl.Lookup(name)
+		result, err := tt.(tpl.TemplateExecutor).ExecuteToString(ctx)
+		c.Assert(err, qt.IsNil)
+
+		c.Assert(result, qt.Contains, ".True: TRUE")
+		c.Assert(result, qt.Contains, ".TimeZero1: FALSE")
+		c.Assert(result, qt.Contains, ".TimeZero2: FALSE")
+		c.Assert(result, qt.Contains, ".TimeZero3: TRUE")
+		c.Assert(result, qt.Contains, ".Now: TRUE")
+		c.Assert(result, qt.Contains, "TimeZero1 with: FALSE")
+		c.Assert(result, qt.Contains, ".TimeZero1: mytemplate: FALSE")
+		c.Assert(result, qt.Contains, ".TimeZero1: other-file-template: FALSE")
+		c.Assert(result, qt.Contains, ".NonEmptyInterfaceTypedNil: FALSE")
+	}
+
+}
+
+func TestCollectInfo(t *testing.T) {
+
+	configStr := `{ "version": 42 }`
+
+	tests := []struct {
+		name      string
+		tplString string
+		expected  tpl.Info
+	}{
+		{"Basic Inner", `{{ .Inner }}`, tpl.Info{IsInner: true, Config: tpl.DefaultConfig}},
+		{"Basic config map", "{{ $_hugo_config := `" + configStr + "`  }}", tpl.Info{
+			Config: tpl.Config{
+				Version: 42,
+			},
+		}},
+	}
+
+	echo := func(in interface{}) interface{} {
+		return in
+	}
+
+	funcs := template.FuncMap{
+		"highlight": echo,
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := qt.New(t)
+
+			templ, err := template.New("foo").Funcs(funcs).Parse(test.tplString)
+			c.Assert(err, qt.IsNil)
+
+			ctx := newTemplateContext(createParseTreeLookup(templ))
+			ctx.typ = templateShortcode
+			ctx.applyTransformations(templ.Tree.Root)
+
+			c.Assert(ctx.Info, qt.Equals, test.expected)
+		})
+	}
+
+}
+
+func TestPartialReturn(t *testing.T) {
+
+	tests := []struct {
+		name      string
+		tplString string
+		expected  bool
+	}{
+		{"Basic", `
+{{ $a := "Hugo Rocks!" }}
+{{ return $a }}
+`, true},
+		{"Expression", `
+{{ return add 32 }}
+`, true},
+	}
+
+	echo := func(in interface{}) interface{} {
+		return in
+	}
+
+	funcs := template.FuncMap{
+		"return": echo,
+		"add":    echo,
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			c := qt.New(t)
+
+			templ, err := template.New("foo").Funcs(funcs).Parse(test.tplString)
+			c.Assert(err, qt.IsNil)
+
+			_, err = applyTemplateTransformers(templatePartial, templ.Tree, createParseTreeLookup(templ))
+
+			// Just check that it doesn't fail in this test. We have functional tests
+			// in hugoblib.
+			c.Assert(err, qt.IsNil)
+
+		})
+	}
 
 }

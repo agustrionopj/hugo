@@ -1,4 +1,4 @@
-// Copyright 2017 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import (
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/spf13/cobra"
-	"github.com/spf13/nitro"
 )
 
 type commandsBuilder struct {
@@ -48,12 +47,14 @@ func (b *commandsBuilder) addAll() *commandsBuilder {
 		newEnvCmd(),
 		newConfigCmd(),
 		newCheckCmd(),
+		newDeployCmd(),
 		newConvertCmd(),
 		b.newNewCmd(),
 		newListCmd(),
 		newImportCmd(),
 		newGenCmd(),
 		createReleaser(),
+		b.newModCmd(),
 	)
 
 	return b
@@ -197,6 +198,12 @@ type hugoBuilderCommon struct {
 
 	gc bool
 
+	// Profile flags (for debugging of performance problems)
+	cpuprofile   string
+	memprofile   string
+	mutexprofile string
+	traceprofile string
+
 	// TODO(bep) var vs string
 	logging    bool
 	verbose    bool
@@ -237,31 +244,46 @@ func (cc *hugoBuilderCommon) getEnvironment(isServer bool) string {
 	return hugo.EnvironmentProduction
 }
 
+func (cc *hugoBuilderCommon) handleCommonBuilderFlags(cmd *cobra.Command) {
+	cmd.PersistentFlags().StringVarP(&cc.source, "source", "s", "", "filesystem path to read files relative from")
+	cmd.PersistentFlags().SetAnnotation("source", cobra.BashCompSubdirsInDir, []string{})
+	cmd.PersistentFlags().StringVarP(&cc.environment, "environment", "e", "", "build environment")
+	cmd.PersistentFlags().StringP("themesDir", "", "", "filesystem path to themes directory")
+	cmd.PersistentFlags().BoolP("ignoreVendor", "", false, "ignores any _vendor directory")
+}
+
 func (cc *hugoBuilderCommon) handleFlags(cmd *cobra.Command) {
+	cc.handleCommonBuilderFlags(cmd)
 	cmd.Flags().Bool("cleanDestinationDir", false, "remove files from destination not found in static directories")
 	cmd.Flags().BoolP("buildDrafts", "D", false, "include content marked as draft")
 	cmd.Flags().BoolP("buildFuture", "F", false, "include content with publishdate in the future")
 	cmd.Flags().BoolP("buildExpired", "E", false, "include expired content")
-	cmd.Flags().StringVarP(&cc.source, "source", "s", "", "filesystem path to read files relative from")
-	cmd.Flags().StringVarP(&cc.environment, "environment", "e", "", "build environment")
 	cmd.Flags().StringP("contentDir", "c", "", "filesystem path to content directory")
 	cmd.Flags().StringP("layoutDir", "l", "", "filesystem path to layout directory")
 	cmd.Flags().StringP("cacheDir", "", "", "filesystem path to cache directory. Defaults: $TMPDIR/hugo_cache/")
 	cmd.Flags().BoolP("ignoreCache", "", false, "ignores the cache directory")
 	cmd.Flags().StringP("destination", "d", "", "filesystem path to write files to")
 	cmd.Flags().StringSliceP("theme", "t", []string{}, "themes to use (located in /themes/THEMENAME/)")
-	cmd.Flags().StringP("themesDir", "", "", "filesystem path to themes directory")
 	cmd.Flags().StringVarP(&cc.baseURL, "baseURL", "b", "", "hostname (and path) to the root, e.g. http://spf13.com/")
 	cmd.Flags().Bool("enableGitInfo", false, "add Git revision, date and author info to the pages")
 	cmd.Flags().BoolVar(&cc.gc, "gc", false, "enable to run some cleanup tasks (remove unused cache files) after the build")
 
-	cmd.Flags().BoolVar(&nitro.AnalysisOn, "stepAnalysis", false, "display memory and timing of different steps of the program")
 	cmd.Flags().Bool("templateMetrics", false, "display metrics about template executions")
 	cmd.Flags().Bool("templateMetricsHints", false, "calculate some improvement hints when combined with --templateMetrics")
 	cmd.Flags().BoolP("forceSyncStatic", "", false, "copy all files when static is changed.")
 	cmd.Flags().BoolP("noTimes", "", false, "don't sync modification time of files")
 	cmd.Flags().BoolP("noChmod", "", false, "don't sync permission mode of files")
 	cmd.Flags().BoolP("i18n-warnings", "", false, "print missing translations")
+	cmd.Flags().BoolP("path-warnings", "", false, "print warnings on duplicate target paths etc.")
+	cmd.Flags().StringVarP(&cc.cpuprofile, "profile-cpu", "", "", "write cpu profile to `file`")
+	cmd.Flags().StringVarP(&cc.memprofile, "profile-mem", "", "", "write memory profile to `file`")
+	cmd.Flags().StringVarP(&cc.mutexprofile, "profile-mutex", "", "", "write Mutex profile to `file`")
+	cmd.Flags().StringVarP(&cc.traceprofile, "trace", "", "", "write trace to `file` (not useful in general)")
+
+	// Hide these for now.
+	cmd.Flags().MarkHidden("profile-cpu")
+	cmd.Flags().MarkHidden("profile-mem")
+	cmd.Flags().MarkHidden("profile-mutex")
 
 	cmd.Flags().StringSlice("disableKinds", []string{}, "disable different kind of pages (home, RSS etc.)")
 

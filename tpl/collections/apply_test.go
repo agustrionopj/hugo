@@ -1,4 +1,4 @@
-// Copyright 2017 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,15 +18,19 @@ import (
 
 	"fmt"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/tpl"
-	"github.com/stretchr/testify/require"
 )
 
 type templateFinder int
 
 func (templateFinder) Lookup(name string) (tpl.Template, bool) {
 	return nil, false
+}
+
+func (templateFinder) LookupVariant(name string, variants tpl.TemplateVariants) (tpl.Template, bool, bool) {
+	return nil, false, false
 }
 
 func (templateFinder) GetFuncs() map[string]interface{} {
@@ -37,24 +41,25 @@ func (templateFinder) GetFuncs() map[string]interface{} {
 
 func TestApply(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{Tmpl: new(templateFinder)})
 
 	strings := []interface{}{"a\n", "b\n"}
 
 	result, err := ns.Apply(strings, "print", "a", "b", "c")
-	require.NoError(t, err)
-	require.Equal(t, []interface{}{"abc", "abc"}, result, "testing variadic")
+	c.Assert(err, qt.IsNil)
+	c.Assert(result, qt.DeepEquals, []interface{}{"abc", "abc"})
 
 	_, err = ns.Apply(strings, "apply", ".")
-	require.Error(t, err)
+	c.Assert(err, qt.Not(qt.IsNil))
 
 	var nilErr *error
 	_, err = ns.Apply(nilErr, "chomp", ".")
-	require.Error(t, err)
+	c.Assert(err, qt.Not(qt.IsNil))
 
 	_, err = ns.Apply(strings, "dobedobedo", ".")
-	require.Error(t, err)
+	c.Assert(err, qt.Not(qt.IsNil))
 
 	_, err = ns.Apply(strings, "foo.Chomp", "c\n")
 	if err == nil {

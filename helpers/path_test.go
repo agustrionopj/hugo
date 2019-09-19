@@ -27,9 +27,7 @@ import (
 
 	"github.com/gohugoio/hugo/langs"
 
-	"github.com/stretchr/testify/require"
-
-	"github.com/stretchr/testify/assert"
+	qt "github.com/frankban/quicktest"
 
 	"github.com/gohugoio/hugo/hugofs"
 	"github.com/spf13/afero"
@@ -37,6 +35,7 @@ import (
 )
 
 func TestMakePath(t *testing.T) {
+	c := qt.New(t)
 	tests := []struct {
 		input         string
 		expected      string
@@ -62,8 +61,8 @@ func TestMakePath(t *testing.T) {
 		v.Set("removePathAccents", test.removeAccents)
 
 		l := langs.NewDefaultLanguage(v)
-		p, err := NewPathSpec(hugofs.NewMem(v), l)
-		require.NoError(t, err)
+		p, err := NewPathSpec(hugofs.NewMem(v), l, nil)
+		c.Assert(err, qt.IsNil)
 
 		output := p.MakePath(test.input)
 		if output != test.expected {
@@ -73,18 +72,9 @@ func TestMakePath(t *testing.T) {
 }
 
 func TestMakePathSanitized(t *testing.T) {
-	v := viper.New()
-	v.Set("contentDir", "content")
-	v.Set("dataDir", "data")
-	v.Set("i18nDir", "i18n")
-	v.Set("layoutDir", "layouts")
-	v.Set("assetDir", "assets")
-	v.Set("resourceDir", "resources")
-	v.Set("publishDir", "public")
-	v.Set("archetypeDir", "archetypes")
+	v := newTestCfg()
 
-	l := langs.NewDefaultLanguage(v)
-	p, _ := NewPathSpec(hugofs.NewMem(v), l)
+	p, _ := NewPathSpec(hugofs.NewMem(v), v, nil)
 
 	tests := []struct {
 		input    string
@@ -112,7 +102,7 @@ func TestMakePathSanitizedDisablePathToLower(t *testing.T) {
 	v.Set("disablePathToLower", true)
 
 	l := langs.NewDefaultLanguage(v)
-	p, _ := NewPathSpec(hugofs.NewMem(v), l)
+	p, _ := NewPathSpec(hugofs.NewMem(v), l, nil)
 
 	tests := []struct {
 		input    string
@@ -164,33 +154,6 @@ func TestGetRelativePath(t *testing.T) {
 		}
 
 	}
-}
-
-func TestGetRealPath(t *testing.T) {
-	if runtime.GOOS == "windows" && os.Getenv("CI") == "" {
-		t.Skip("Skip TestGetRealPath as os.Symlink needs administrator rights on Windows")
-	}
-
-	d1, err := ioutil.TempDir("", "d1")
-	defer os.Remove(d1)
-	fs := afero.NewOsFs()
-
-	rp1, err := GetRealPath(fs, d1)
-	require.NoError(t, err)
-	assert.Equal(t, d1, rp1)
-
-	sym := filepath.Join(os.TempDir(), "d1sym")
-	err = os.Symlink(d1, sym)
-	require.NoError(t, err)
-	defer os.Remove(sym)
-
-	rp2, err := GetRealPath(fs, sym)
-	require.NoError(t, err)
-
-	// On OS X, the temp folder is itself a symbolic link (to /private...)
-	// This has to do for now.
-	assert.True(t, strings.HasSuffix(rp2, d1))
-
 }
 
 func TestMakePathRelative(t *testing.T) {
@@ -418,6 +381,7 @@ func createNonZeroSizedFileInTempDir() (*os.File, error) {
 	f, err := createZeroSizedFileInTempDir()
 	if err != nil {
 		// no file ??
+		return nil, err
 	}
 	byteString := []byte("byteString")
 	err = ioutil.WriteFile(f.Name(), byteString, 0644)
@@ -430,10 +394,7 @@ func createNonZeroSizedFileInTempDir() (*os.File, error) {
 }
 
 func deleteFileInTempDir(f *os.File) {
-	err := os.Remove(f.Name())
-	if err != nil {
-		// now what?
-	}
+	_ = os.Remove(f.Name())
 }
 
 func createEmptyTempDir() (string, error) {
@@ -449,7 +410,7 @@ func createEmptyTempDir() (string, error) {
 func createTempDirWithZeroLengthFiles() (string, error) {
 	d, dirErr := createEmptyTempDir()
 	if dirErr != nil {
-		//now what?
+		return "", dirErr
 	}
 	filePrefix := "_path_test_"
 	_, fileErr := ioutil.TempFile(d, filePrefix) // dir is os.TempDir()
@@ -467,7 +428,7 @@ func createTempDirWithZeroLengthFiles() (string, error) {
 func createTempDirWithNonZeroLengthFiles() (string, error) {
 	d, dirErr := createEmptyTempDir()
 	if dirErr != nil {
-		//now what?
+		return "", dirErr
 	}
 	filePrefix := "_path_test_"
 	f, fileErr := ioutil.TempFile(d, filePrefix) // dir is os.TempDir()
@@ -494,10 +455,7 @@ func createTempDirWithNonZeroLengthFiles() (string, error) {
 }
 
 func deleteTempDir(d string) {
-	err := os.RemoveAll(d)
-	if err != nil {
-		// now what?
-	}
+	_ = os.RemoveAll(d)
 }
 
 func TestExists(t *testing.T) {
@@ -590,8 +548,8 @@ func TestAbsPathify(t *testing.T) {
 }
 
 func TestExtNoDelimiter(t *testing.T) {
-	assert := require.New(t)
-	assert.Equal("json", ExtNoDelimiter(filepath.FromSlash("/my/data.json")))
+	c := qt.New(t)
+	c.Assert(ExtNoDelimiter(filepath.FromSlash("/my/data.json")), qt.Equals, "json")
 }
 
 func TestFilename(t *testing.T) {
@@ -661,6 +619,29 @@ func TestPathPrep(t *testing.T) {
 }
 
 func TestPrettifyPath(t *testing.T) {
+
+}
+
+func TestExtractAndGroupRootPaths(t *testing.T) {
+	in := []string{
+		filepath.FromSlash("/a/b/c/d"),
+		filepath.FromSlash("/a/b/c/e"),
+		filepath.FromSlash("/a/b/e/f"),
+		filepath.FromSlash("/a/b"),
+		filepath.FromSlash("/a/b/c/b/g"),
+		filepath.FromSlash("/c/d/e"),
+	}
+
+	inCopy := make([]string, len(in))
+	copy(inCopy, in)
+
+	result := ExtractAndGroupRootPaths(in)
+
+	c := qt.New(t)
+	c.Assert(fmt.Sprint(result), qt.Equals, filepath.FromSlash("[/a/b/{c,e} /c/d/e]"))
+
+	// Make sure the original is preserved
+	c.Assert(in, qt.DeepEquals, inCopy)
 
 }
 

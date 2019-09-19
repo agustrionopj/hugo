@@ -1,4 +1,4 @@
-// Copyright 2015 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,13 +18,13 @@ import (
 	"regexp"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/spf13/viper"
-	"github.com/stretchr/testify/require"
 )
 
 // Renders a codeblock using Blackfriday
 func (c ContentSpec) render(input string) string {
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	render := c.getHTMLRenderer(0, ctx)
 
 	buf := &bytes.Buffer{}
@@ -34,7 +34,7 @@ func (c ContentSpec) render(input string) string {
 
 // Renders a codeblock using Mmark
 func (c ContentSpec) renderWithMmark(input string) string {
-	ctx := &RenderingContext{Cfg: c.cfg, Config: c.BlackFriday}
+	ctx := &RenderingContext{Cfg: c.Cfg, Config: c.BlackFriday}
 	render := c.getMmarkHTMLRenderer(0, ctx)
 
 	buf := &bytes.Buffer{}
@@ -43,7 +43,7 @@ func (c ContentSpec) renderWithMmark(input string) string {
 }
 
 func TestCodeFence(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
 	type test struct {
 		enabled         bool
@@ -64,10 +64,10 @@ func TestCodeFence(t *testing.T) {
 			v.Set("pygmentsCodeFences", d.enabled)
 			v.Set("pygmentsUseClassic", useClassic)
 
-			c, err := NewContentSpec(v)
-			assert.NoError(err)
+			cs, err := NewContentSpec(v)
+			c.Assert(err, qt.IsNil)
 
-			result := c.render(d.input)
+			result := cs.render(d.input)
 
 			expectedRe, err := regexp.Compile(d.expected)
 
@@ -80,7 +80,7 @@ func TestCodeFence(t *testing.T) {
 				t.Errorf("Test %d failed. BlackFriday enabled:%t, Expected:\n%q got:\n%q", i, d.enabled, d.expected, result)
 			}
 
-			result = c.renderWithMmark(d.input)
+			result = cs.renderWithMmark(d.input)
 			matched = expectedRe.MatchString(result)
 			if !matched {
 				t.Errorf("Test %d failed. Mmark enabled:%t, Expected:\n%q got:\n%q", i, d.enabled, d.expected, result)

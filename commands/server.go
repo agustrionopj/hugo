@@ -1,4 +1,4 @@
-// Copyright 2018 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -244,7 +244,7 @@ func (sc *serverCmd) server(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	for _, s := range c.hugo.Sites {
+	for _, s := range c.hugo().Sites {
 		s.RegisterMediaTypes()
 	}
 
@@ -256,15 +256,11 @@ func (sc *serverCmd) server(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		baseWatchDir := c.Cfg.GetString("workingDir")
-		relWatchDirs := make([]string, len(watchDirs))
-		for i, dir := range watchDirs {
-			relWatchDirs[i], _ = helpers.GetRelativePath(dir, baseWatchDir)
+		watchGroups := helpers.ExtractAndGroupRootPaths(watchDirs)
+
+		for _, group := range watchGroups {
+			jww.FEEDBACK.Printf("Watching for changes in %s\n", group)
 		}
-
-		rootWatchDirs := strings.Join(helpers.UniqueStrings(helpers.ExtractRootPaths(relWatchDirs)), ",")
-
-		jww.FEEDBACK.Printf("Watching for changes in %s%s{%s}\n", baseWatchDir, helpers.FilePathSeparator, rootWatchDirs)
 		watcher, err := c.newWatcher(watchDirs...)
 
 		if err != nil {
@@ -277,6 +273,15 @@ func (sc *serverCmd) server(cmd *cobra.Command, args []string) error {
 
 	return c.serve(sc)
 
+}
+
+func getRootWatchDirsStr(baseDir string, watchDirs []string) string {
+	relWatchDirs := make([]string, len(watchDirs))
+	for i, dir := range watchDirs {
+		relWatchDirs[i], _ = helpers.GetRelativePath(dir, baseDir)
+	}
+
+	return strings.Join(helpers.UniqueStringsSorted(helpers.ExtractRootPaths(relWatchDirs)), ",")
 }
 
 type fileServer struct {
@@ -298,9 +303,9 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, string, string, erro
 		publishDir = filepath.Join(publishDir, root)
 	}
 
-	absPublishDir := f.c.hugo.PathSpec.AbsPathify(publishDir)
+	absPublishDir := f.c.hugo().PathSpec.AbsPathify(publishDir)
 
-	jww.FEEDBACK.Printf("Environment: %q", f.c.hugo.Deps.Site.Hugo().Environment)
+	jww.FEEDBACK.Printf("Environment: %q", f.c.hugo().Deps.Site.Hugo().Environment)
 
 	if i == 0 {
 		if f.s.renderToDisk {
@@ -358,7 +363,7 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, string, string, erro
 						if err := f.c.partialReRender(p); err != nil {
 							f.c.handleBuildErr(err, fmt.Sprintf("Failed to render %q", p))
 							if f.c.showErrorInBrowser {
-								http.Redirect(w, r, p, 301)
+								http.Redirect(w, r, p, http.StatusMovedPermanently)
 								return
 							}
 						}
@@ -386,14 +391,14 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, string, string, erro
 	return mu, u.String(), endpoint, nil
 }
 
-var logErrorRe = regexp.MustCompile("(?s)ERROR \\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}:\\d{2} ")
+var logErrorRe = regexp.MustCompile(`(?s)ERROR \d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} `)
 
 func removeErrorPrefixFromLog(content string) string {
 	return logErrorRe.ReplaceAllLiteralString(content, "")
 }
 func (c *commandeer) serve(s *serverCmd) error {
 
-	isMultiHost := c.hugo.IsMultihost()
+	isMultiHost := c.hugo().IsMultihost()
 
 	var (
 		baseURLs []string
@@ -401,17 +406,17 @@ func (c *commandeer) serve(s *serverCmd) error {
 	)
 
 	if isMultiHost {
-		for _, s := range c.hugo.Sites {
+		for _, s := range c.hugo().Sites {
 			baseURLs = append(baseURLs, s.BaseURL.String())
-			roots = append(roots, s.Language.Lang)
+			roots = append(roots, s.Language().Lang)
 		}
 	} else {
-		s := c.hugo.Sites[0]
+		s := c.hugo().Sites[0]
 		baseURLs = []string{s.BaseURL.String()}
 		roots = []string{""}
 	}
 
-	templ, err := c.hugo.TextTmpl.Parse("__default_server_error", buildErrorTemplate)
+	templ, err := c.hugo().TextTmpl.Parse("__default_server_error", buildErrorTemplate)
 	if err != nil {
 		return err
 	}
@@ -430,7 +435,7 @@ func (c *commandeer) serve(s *serverCmd) error {
 		livereload.Initialize()
 	}
 
-	var sigs = make(chan os.Signal)
+	var sigs = make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
 
 	for i := range baseURLs {

@@ -1,4 +1,4 @@
-// Copyright 2018 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/deps"
@@ -29,14 +30,13 @@ import (
 	"github.com/gohugoio/hugo/hugofs"
 	"github.com/gohugoio/hugo/langs"
 	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type tstNoStringer struct{}
 
 func TestAfter(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
 
@@ -58,17 +58,17 @@ func TestAfter(t *testing.T) {
 		{1, t, false},
 		{1, (*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.After(test.index, test.seq)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		require.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
@@ -92,7 +92,7 @@ func (g *tstGrouper2) Group(key interface{}, items interface{}) (interface{}, er
 
 func TestGroup(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New(&deps.Deps{})
 
 	for i, test := range []struct {
@@ -111,22 +111,23 @@ func TestGroup(t *testing.T) {
 		{"a", nil, false},
 		{nil, []*tstGrouper{{}, {}}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Group(test.key, test.items)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		require.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestDelimit(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
 
@@ -161,7 +162,7 @@ func TestDelimit(t *testing.T) {
 		{map[int]string{3: "10", 2: "20", 1: "30", 4: "40", 5: "50"}, "--", "--and--", "30--20--10--40--and--50"},
 		{map[float64]string{3.5: "10", 2.5: "20", 1.5: "30", 4.5: "40", 5.5: "50"}, "--", "--and--", "30--20--10--40--and--50"},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		var result template.HTML
 		var err error
@@ -172,13 +173,14 @@ func TestDelimit(t *testing.T) {
 			result, err = ns.Delimit(test.seq, test.delimiter, test.last)
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestDictionary(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
 
@@ -192,22 +194,23 @@ func TestDictionary(t *testing.T) {
 		{[]interface{}{5, "b"}, false},
 		{[]interface{}{"a", "b", "c"}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.values)
+		errMsg := qt.Commentf("[%d] %v", i, test.values)
 
 		result, err := ns.Dictionary(test.values...)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
 func TestEchoParam(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
 
@@ -229,16 +232,17 @@ func TestEchoParam(t *testing.T) {
 		{map[string]interface{}{"foo": nil}, "foo", ""},
 		{(*[]string)(nil), "bar", ""},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result := ns.EchoParam(test.a, test.key)
 
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestFirst(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
 
@@ -260,22 +264,23 @@ func TestFirst(t *testing.T) {
 		{1, t, false},
 		{1, (*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.First(test.limit, test.seq)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
 func TestIn(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
 
@@ -302,42 +307,54 @@ func TestIn(t *testing.T) {
 		{"this substring should be found", "substring", true},
 		{"this substring should not be found", "subseastring", false},
 		{nil, "foo", false},
+		// Pointers
+		{pagesPtr{p1, p2, p3, p2}, p2, true},
+		{pagesPtr{p1, p2, p3, p2}, p4, false},
+		// Structs
+		{pagesVals{p3v, p2v, p3v, p2v}, p2v, true},
+		{pagesVals{p3v, p2v, p3v, p2v}, p4v, false},
 	} {
 
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
-		result := ns.In(test.l1, test.l2)
-		assert.Equal(t, test.expect, result, errMsg)
+		result, err := ns.In(test.l1, test.l2)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
+
+	// Slices are not comparable
+	_, err := ns.In([]string{"a", "b"}, []string{"a", "b"})
+	c.Assert(err, qt.Not(qt.IsNil))
 }
 
-type page struct {
+type testPage struct {
 	Title string
 }
 
-func (p page) String() string {
+func (p testPage) String() string {
 	return "p-" + p.Title
 }
 
-type pagesPtr []*page
-type pagesVals []page
+type pagesPtr []*testPage
+type pagesVals []testPage
+
+var (
+	p1 = &testPage{"A"}
+	p2 = &testPage{"B"}
+	p3 = &testPage{"C"}
+	p4 = &testPage{"D"}
+
+	p1v = testPage{"A"}
+	p2v = testPage{"B"}
+	p3v = testPage{"C"}
+	p4v = testPage{"D"}
+)
 
 func TestIntersect(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
-
-	var (
-		p1 = &page{"A"}
-		p2 = &page{"B"}
-		p3 = &page{"C"}
-		p4 = &page{"D"}
-
-		p1v = page{"A"}
-		p2v = page{"B"}
-		p3v = page{"C"}
-		p4v = page{"D"}
-	)
 
 	for i, test := range []struct {
 		l1, l2 interface{}
@@ -408,16 +425,16 @@ func TestIntersect(t *testing.T) {
 		{[]int{1, 1}, [][]int{{1, 2}, {1, 2}, {1, 3}}, false},
 	} {
 
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Intersect(test.l1, test.l2)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
 		if !reflect.DeepEqual(result, test.expect) {
 			t.Fatalf("[%d] Got\n%v expected\n%v", i, result, test.expect)
 		}
@@ -426,7 +443,7 @@ func TestIntersect(t *testing.T) {
 
 func TestIsSet(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := newTestNs()
 
 	for i, test := range []struct {
@@ -448,20 +465,21 @@ func TestIsSet(t *testing.T) {
 		{nil, "nil", false, false},
 		{[]interface{}{1, 2, 3, 5}, TstX{}, false, true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.IsSet(test.a, test.key)
 		if test.isErr {
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestLast(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
 
@@ -483,23 +501,23 @@ func TestLast(t *testing.T) {
 		{1, t, false},
 		{1, (*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Last(test.limit, test.seq)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
 func TestQuerify(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New(&deps.Deps{})
 
 	for i, test := range []struct {
@@ -512,23 +530,23 @@ func TestQuerify(t *testing.T) {
 		{[]interface{}{5, "b"}, false},
 		{[]interface{}{"a", "b", "c"}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.params)
+		errMsg := qt.Commentf("[%d] %v", i, test.params)
 
 		result, err := ns.Querify(test.params...)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestSeq(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New(&deps.Deps{})
 
 	for i, test := range []struct {
@@ -556,23 +574,23 @@ func TestSeq(t *testing.T) {
 		{[]interface{}{tstNoStringer{}}, false},
 		{nil, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Seq(test.args...)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
 func TestShuffle(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New(&deps.Deps{})
 
 	for i, test := range []struct {
@@ -592,27 +610,27 @@ func TestShuffle(t *testing.T) {
 		{t, false},
 		{(*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Shuffle(test.seq)
 
 		if !test.success {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
 
 		resultv := reflect.ValueOf(result)
 		seqv := reflect.ValueOf(test.seq)
 
-		assert.Equal(t, resultv.Len(), seqv.Len(), errMsg)
+		c.Assert(seqv.Len(), qt.Equals, resultv.Len(), errMsg)
 	}
 }
 
 func TestShuffleRandomising(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New(&deps.Deps{})
 
 	// Note that this test can fail with false negative result if the shuffle
@@ -629,21 +647,21 @@ func TestShuffleRandomising(t *testing.T) {
 		result, err := ns.Shuffle(test.seq)
 		resultv := reflect.ValueOf(result)
 
-		require.NoError(t, err)
+		c.Assert(err, qt.IsNil)
 
 		allSame := true
 		for i, v := range test.seq {
 			allSame = allSame && (resultv.Index(i).Interface() == v)
 		}
 
-		assert.False(t, allSame, "Expected sequence to be shuffled but was in the same order")
+		c.Assert(allSame, qt.Equals, false)
 	}
 }
 
 // Also see tests in commons/collection.
 func TestSlice(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New(&deps.Deps{})
 
 	for i, test := range []struct {
@@ -656,32 +674,20 @@ func TestSlice(t *testing.T) {
 		{[]interface{}{5, "b"}, []interface{}{5, "b"}},
 		{[]interface{}{tstNoStringer{}}, []tstNoStringer{{}}},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.args)
+		errMsg := qt.Commentf("[%d] %v", i, test.args)
 
 		result := ns.Slice(test.args...)
 
-		assert.Equal(t, test.expected, result, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expected, errMsg)
 	}
 
-	assert.Len(t, ns.Slice(), 0)
 }
 
 func TestUnion(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New(&deps.Deps{})
-
-	var (
-		p1 = &page{"A"}
-		p2 = &page{"B"}
-		//		p3 = &page{"C"}
-		p4 = &page{"D"}
-
-		p1v = page{"A"}
-		//p2v = page{"B"}
-		p3v = page{"C"}
-		//p4v = page{"D"}
-	)
 
 	for i, test := range []struct {
 		l1     interface{}
@@ -752,15 +758,15 @@ func TestUnion(t *testing.T) {
 		{[][]int{{1, 1}, {1, 2}}, [][]int{{2, 1}, {2, 2}}, false, true},
 	} {
 
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Union(test.l1, test.l2)
 		if test.isErr {
-			assert.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
 		if !reflect.DeepEqual(result, test.expect) {
 			t.Fatalf("[%d] Got\n%v expected\n%v", i, result, test.expect)
 		}
@@ -769,7 +775,7 @@ func TestUnion(t *testing.T) {
 
 func TestUniq(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New(&deps.Deps{})
 	for i, test := range []struct {
 		l      interface{}
@@ -786,20 +792,28 @@ func TestUniq(t *testing.T) {
 		{[]int{1, 2, 3, 2}, []int{1, 2, 3}, false},
 		{[4]int{1, 2, 3, 2}, []int{1, 2, 3}, false},
 		{nil, make([]interface{}, 0), false},
-		// should-errors
+		// Pointers
+		{pagesPtr{p1, p2, p3, p2}, pagesPtr{p1, p2, p3}, false},
+		{pagesPtr{}, pagesPtr{}, false},
+		// Structs
+		{pagesVals{p3v, p2v, p3v, p2v}, pagesVals{p3v, p2v}, false},
+
+		// should fail
+		// uncomparable types
+		{[]map[string]int{{"K1": 1}}, []map[string]int{{"K2": 2}, {"K2": 2}}, true},
 		{1, 1, true},
 		{"foo", "fo", true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Uniq(test.l)
 		if test.isErr {
-			assert.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
@@ -808,6 +822,10 @@ func (x *TstX) TstRp() string {
 }
 
 func (x TstX) TstRv() string {
+	return "r" + x.B
+}
+
+func (x TstX) TstRv2() string {
 	return "r" + x.B
 }
 
@@ -840,6 +858,33 @@ func (x TstX) String() string {
 type TstX struct {
 	A, B       string
 	unexported string
+}
+
+type TstXIHolder struct {
+	XI TstXI
+}
+
+// Partially implemented by the TstX struct.
+type TstXI interface {
+	TstRv2() string
+}
+
+func ToTstXIs(slice interface{}) []TstXI {
+	s := reflect.ValueOf(slice)
+	if s.Kind() != reflect.Slice {
+		return nil
+	}
+	tis := make([]TstXI, s.Len())
+
+	for i := 0; i < s.Len(); i++ {
+		tsti, ok := s.Index(i).Interface().(TstXI)
+		if !ok {
+			return nil
+		}
+		tis[i] = tsti
+	}
+
+	return tis
 }
 
 func newDeps(cfg config.Provider) *deps.Deps {

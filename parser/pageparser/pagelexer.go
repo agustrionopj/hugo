@@ -117,7 +117,7 @@ var (
 )
 
 func (l *pageLexer) next() rune {
-	if int(l.pos) >= len(l.input) {
+	if l.pos >= len(l.input) {
 		l.width = 0
 		return eof
 	}
@@ -442,13 +442,6 @@ func lexMainSection(l *pageLexer) stateFunc {
 
 }
 
-func (l *pageLexer) posFirstNonWhiteSpace() int {
-	f := func(c rune) bool {
-		return !unicode.IsSpace(c)
-	}
-	return bytes.IndexFunc(l.input[l.pos:], f)
-}
-
 func lexDone(l *pageLexer) stateFunc {
 
 	// Done!
@@ -475,14 +468,6 @@ func (l *pageLexer) indexByte(sep byte) int {
 
 func (l *pageLexer) hasPrefix(prefix []byte) bool {
 	return bytes.HasPrefix(l.input[l.pos:], prefix)
-}
-
-func (l *pageLexer) hasPrefixByte(prefix byte) bool {
-	b := l.input[l.pos:]
-	if len(b) == 0 {
-		return false
-	}
-	return b[0] == prefix
 }
 
 // helper functions

@@ -1,4 +1,4 @@
-// Copyright 2018 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,9 +19,8 @@ import (
 	"strings"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/spf13/afero"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestGuessType(t *testing.T) {
@@ -42,7 +41,7 @@ func TestGuessType(t *testing.T) {
 		{"html", "html"},
 		{"htm", "html"},
 		{"org", "org"},
-		{"excel", "unknown"},
+		{"excel", ""},
 	} {
 		result := GuessType(this.in)
 		if result != this.expect {
@@ -166,7 +165,29 @@ var containsAdditionalTestData = []struct {
 	{"", []byte(""), false},
 }
 
+func TestSliceToLower(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		value    []string
+		expected []string
+	}{
+		{[]string{"a", "b", "c"}, []string{"a", "b", "c"}},
+		{[]string{"a", "B", "c"}, []string{"a", "b", "c"}},
+		{[]string{"A", "B", "C"}, []string{"a", "b", "c"}},
+	}
+
+	for _, test := range tests {
+		res := SliceToLower(test.value)
+		for i, val := range res {
+			if val != test.expected[i] {
+				t.Errorf("Case mismatch. Expected %s, got %s", test.expected[i], res[i])
+			}
+		}
+	}
+}
+
 func TestReaderContains(t *testing.T) {
+	c := qt.New(t)
 	for i, this := range append(containsBenchTestData, containsAdditionalTestData...) {
 		result := ReaderContains(strings.NewReader(this.v1), this.v2)
 		if result != this.expect {
@@ -174,21 +195,21 @@ func TestReaderContains(t *testing.T) {
 		}
 	}
 
-	assert.False(t, ReaderContains(nil, []byte("a")))
-	assert.False(t, ReaderContains(nil, nil))
+	c.Assert(ReaderContains(nil, []byte("a")), qt.Equals, false)
+	c.Assert(ReaderContains(nil, nil), qt.Equals, false)
 }
 
 func TestGetTitleFunc(t *testing.T) {
 	title := "somewhere over the rainbow"
-	assert := require.New(t)
+	c := qt.New(t)
 
-	assert.Equal("Somewhere Over The Rainbow", GetTitleFunc("go")(title))
-	assert.Equal("Somewhere over the Rainbow", GetTitleFunc("chicago")(title), "Chicago style")
-	assert.Equal("Somewhere over the Rainbow", GetTitleFunc("Chicago")(title), "Chicago style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("ap")(title), "AP style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("ap")(title), "AP style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("")(title), "AP style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("unknown")(title), "AP style")
+	c.Assert(GetTitleFunc("go")(title), qt.Equals, "Somewhere Over The Rainbow")
+	c.Assert(GetTitleFunc("chicago")(title), qt.Equals, "Somewhere over the Rainbow")
+	c.Assert(GetTitleFunc("Chicago")(title), qt.Equals, "Somewhere over the Rainbow")
+	c.Assert(GetTitleFunc("ap")(title), qt.Equals, "Somewhere Over the Rainbow")
+	c.Assert(GetTitleFunc("ap")(title), qt.Equals, "Somewhere Over the Rainbow")
+	c.Assert(GetTitleFunc("")(title), qt.Equals, "Somewhere Over the Rainbow")
+	c.Assert(GetTitleFunc("unknown")(title), qt.Equals, "Somewhere Over the Rainbow")
 
 }
 
@@ -213,11 +234,30 @@ func TestUniqueStrings(t *testing.T) {
 	}
 }
 
+func TestUniqueStringsReuse(t *testing.T) {
+	in := []string{"a", "b", "a", "b", "c", "", "a", "", "d"}
+	output := UniqueStringsReuse(in)
+	expected := []string{"a", "b", "c", "", "d"}
+	if !reflect.DeepEqual(output, expected) {
+		t.Errorf("Expected %#v, got %#v\n", expected, output)
+	}
+}
+
+func TestUniqueStringsSorted(t *testing.T) {
+	c := qt.New(t)
+	in := []string{"a", "a", "b", "c", "b", "", "a", "", "d"}
+	output := UniqueStringsSorted(in)
+	expected := []string{"", "a", "b", "c", "d"}
+	c.Assert(output, qt.DeepEquals, expected)
+	c.Assert(UniqueStringsSorted(nil), qt.IsNil)
+}
+
 func TestFindAvailablePort(t *testing.T) {
+	c := qt.New(t)
 	addr, err := FindAvailablePort()
-	assert.Nil(t, err)
-	assert.NotNil(t, addr)
-	assert.True(t, addr.Port > 0)
+	c.Assert(err, qt.IsNil)
+	c.Assert(addr, qt.Not(qt.IsNil))
+	c.Assert(addr.Port > 0, qt.Equals, true)
 }
 
 func TestFastMD5FromFile(t *testing.T) {
@@ -239,17 +279,17 @@ func TestFastMD5FromFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := require.New(t)
+	c := qt.New(t)
 
 	sf1, err := fs.Open("small.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 	sf2, err := fs.Open("small2.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 
 	bf1, err := fs.Open("bigger.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 	bf2, err := fs.Open("bigger2.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 
 	defer sf1.Close()
 	defer sf2.Close()
@@ -257,24 +297,24 @@ func TestFastMD5FromFile(t *testing.T) {
 	defer bf2.Close()
 
 	m1, err := MD5FromFileFast(sf1)
-	req.NoError(err)
-	req.Equal("e9c8989b64b71a88b4efb66ad05eea96", m1)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m1, qt.Equals, "e9c8989b64b71a88b4efb66ad05eea96")
 
 	m2, err := MD5FromFileFast(sf2)
-	req.NoError(err)
-	req.NotEqual(m1, m2)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m2, qt.Not(qt.Equals), m1)
 
 	m3, err := MD5FromFileFast(bf1)
-	req.NoError(err)
-	req.NotEqual(m2, m3)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m3, qt.Not(qt.Equals), m2)
 
 	m4, err := MD5FromFileFast(bf2)
-	req.NoError(err)
-	req.NotEqual(m3, m4)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m4, qt.Not(qt.Equals), m3)
 
 	m5, err := MD5FromReader(bf2)
-	req.NoError(err)
-	req.NotEqual(m4, m5)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m5, qt.Not(qt.Equals), m4)
 }
 
 func BenchmarkMD5FromFileFast(b *testing.B) {
@@ -305,5 +345,57 @@ func BenchmarkMD5FromFileFast(b *testing.B) {
 			}
 		})
 	}
+
+}
+
+func BenchmarkUniqueStrings(b *testing.B) {
+	input := []string{"a", "b", "d", "e", "d", "h", "a", "i"}
+
+	b.Run("Safe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			result := UniqueStrings(input)
+			if len(result) != 6 {
+				b.Fatal(fmt.Sprintf("invalid count: %d", len(result)))
+			}
+		}
+	})
+
+	b.Run("Reuse slice", func(b *testing.B) {
+		b.StopTimer()
+		inputs := make([][]string, b.N)
+		for i := 0; i < b.N; i++ {
+			inputc := make([]string, len(input))
+			copy(inputc, input)
+			inputs[i] = inputc
+		}
+		b.StartTimer()
+		for i := 0; i < b.N; i++ {
+			inputc := inputs[i]
+
+			result := UniqueStringsReuse(inputc)
+			if len(result) != 6 {
+				b.Fatal(fmt.Sprintf("invalid count: %d", len(result)))
+			}
+		}
+	})
+
+	b.Run("Reuse slice sorted", func(b *testing.B) {
+		b.StopTimer()
+		inputs := make([][]string, b.N)
+		for i := 0; i < b.N; i++ {
+			inputc := make([]string, len(input))
+			copy(inputc, input)
+			inputs[i] = inputc
+		}
+		b.StartTimer()
+		for i := 0; i < b.N; i++ {
+			inputc := inputs[i]
+
+			result := UniqueStringsSorted(inputc)
+			if len(result) != 6 {
+				b.Fatal(fmt.Sprintf("invalid count: %d", len(result)))
+			}
+		}
+	})
 
 }

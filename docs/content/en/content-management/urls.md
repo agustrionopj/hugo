@@ -82,9 +82,12 @@ The following is a list of values that can be used in a `permalink` definition i
 
 ## Aliases
 
-For people migrating existing published content to Hugo, there's a good chance you need a mechanism to handle redirecting old URLs.
+Aliases can be used to create redirects to your page from other URLs.
 
-Luckily, redirects can be handled easily with **aliases** in Hugo.
+Aliases comes in two forms:
+
+1. Starting with a `/` meaning they are relative to the `BaseURL`, e.g. `/posts/my-blogpost/`
+2. They are relative to the `Page` they're defined in, e.g. `my-blogpost` or even something like `../blog/my-blogpost` (new in Hugo 0.55).
 
 ### Example: Aliases
 
@@ -125,6 +128,8 @@ aliases:
     - /es/posts/my-original-post/
 ---
 ```
+
+From Hugo 0.55 you can also have page-relative aliases, so ` /es/posts/my-original-post/` can be simplified to the more portable `my-original-post/`
 
 ### How Hugo Aliases Work
 
@@ -253,11 +258,28 @@ Or, if you are on Windows and do not have `grep` installed:
 hugo config | FINDSTR /I canon
 ```
 
-## Override URLs with Front Matter
+## Set URL in Front Matter
 
 In addition to specifying permalink values in your site configuration for different content sections, Hugo provides even more granular control for individual pieces of content.
 
 Both `slug` and `url` can be defined in individual front matter. For more information on content destinations at build time, see [Content Organization][contentorg].
+
+From Hugo 0.55, you can use URLs relative to the current site context (the language), which makes it simpler to maintain. For a Japanese translation, both of the following examples would get the same URL:
+
+```markdown
+---
+title: "Custom URL!"
+url: "/jp/custom/foo"
+---
+```
+
+```markdown
+---
+title: "Custom URL!"
+url: "custom/foo"
+---
+```
+
 
 ## Relative URLs
 

@@ -17,11 +17,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	"github.com/gohugoio/hugo/resources/page"
+
+	qt "github.com/frankban/quicktest"
 )
 
 func TestSimilarPercentage(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
 	sentence := "this is some words about nothing, Hugo!"
 	words := strings.Fields(sentence)
@@ -30,14 +32,20 @@ func TestSimilarPercentage(t *testing.T) {
 	}
 	sentenceReversed := strings.Join(words, " ")
 
-	assert.Equal(100, howSimilar("Hugo Rules", "Hugo Rules"))
-	assert.Equal(50, howSimilar("Hugo Rules", "Hugo Rocks"))
-	assert.Equal(66, howSimilar("The Hugo Rules", "The Hugo Rocks"))
-	assert.Equal(66, howSimilar("The Hugo Rules", "The Hugo"))
-	assert.Equal(66, howSimilar("The Hugo", "The Hugo Rules"))
-	assert.Equal(0, howSimilar("Totally different", "Not Same"))
-	assert.Equal(14, howSimilar(sentence, sentenceReversed))
+	c.Assert(howSimilar("Hugo Rules", "Hugo Rules"), qt.Equals, 100)
+	c.Assert(howSimilar("Hugo Rules", "Hugo Rocks"), qt.Equals, 50)
+	c.Assert(howSimilar("The Hugo Rules", "The Hugo Rocks"), qt.Equals, 66)
+	c.Assert(howSimilar("The Hugo Rules", "The Hugo"), qt.Equals, 66)
+	c.Assert(howSimilar("The Hugo", "The Hugo Rules"), qt.Equals, 66)
+	c.Assert(howSimilar("Totally different", "Not Same"), qt.Equals, 0)
+	c.Assert(howSimilar(sentence, sentenceReversed), qt.Equals, 14)
 
+}
+
+func TestSimilarPercentageNonString(t *testing.T) {
+	c := qt.New(t)
+	c.Assert(howSimilar(page.NopPage, page.NopPage), qt.Equals, 100)
+	c.Assert(howSimilar(page.Pages{}, page.Pages{}), qt.Equals, 90)
 }
 
 func BenchmarkHowSimilar(b *testing.B) {
