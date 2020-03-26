@@ -157,6 +157,11 @@ func TestGetJSON(t *testing.T) {
 			"",
 			false,
 		},
+		{
+			`pass/üńīçøðê-url.json`,
+			`{"gomeetup":["Sydney","San Francisco","Stockholm"]}`,
+			map[string]interface{}{"gomeetup": []interface{}{"Sydney", "San Francisco", "Stockholm"}},
+		},
 	} {
 
 		msg := qt.Commentf("Test %d", i)
@@ -202,6 +207,12 @@ func TestGetJSON(t *testing.T) {
 		c.Assert(got, qt.Not(qt.IsNil), msg)
 		c.Assert(got, qt.DeepEquals, test.expect)
 	}
+}
+
+func TestJoinURL(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+	c.Assert(joinURL([]interface{}{"https://foo?id=", 32}), qt.Equals, "https://foo?id=32")
 }
 
 func TestParseCSV(t *testing.T) {

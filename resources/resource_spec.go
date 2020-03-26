@@ -22,6 +22,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gohugoio/hugo/common/herrors"
+
+	"github.com/gohugoio/hugo/config"
+
 	"github.com/gohugoio/hugo/hugofs"
 
 	"github.com/gohugoio/hugo/helpers"
@@ -41,6 +45,7 @@ func NewSpec(
 	s *helpers.PathSpec,
 	fileCaches filecache.Caches,
 	logger *loggers.Logger,
+	errorHandler herrors.ErrorSender,
 	outputFormats output.Formats,
 	mimeTypes media.Types) (*Spec, error) {
 
@@ -65,10 +70,12 @@ func NewSpec(
 
 	rs := &Spec{PathSpec: s,
 		Logger:        logger,
+		ErrorSender:   errorHandler,
 		imaging:       imaging,
 		MediaTypes:    mimeTypes,
 		OutputFormats: outputFormats,
 		Permalinks:    permalinks,
+		BuildConfig:   config.DecodeBuild(s.Cfg),
 		FileCaches:    fileCaches,
 		imageCache: newImageCache(
 			fileCaches.ImageCache(),
@@ -88,11 +95,13 @@ type Spec struct {
 	MediaTypes    media.Types
 	OutputFormats output.Formats
 
-	Logger *loggers.Logger
+	Logger      *loggers.Logger
+	ErrorSender herrors.ErrorSender
 
 	TextTemplates tpl.TemplateParseFinder
 
-	Permalinks page.PermalinkExpander
+	Permalinks  page.PermalinkExpander
+	BuildConfig config.Build
 
 	// Holds default filter settings etc.
 	imaging *images.ImageProcessor
@@ -129,15 +138,8 @@ func (r *Spec) ClearCaches() {
 	r.ResourceCache.clear()
 }
 
-func (r *Spec) DeleteCacheByPrefix(prefix string) {
-	r.imageCache.deleteByPrefix(prefix)
-}
-
-// TODO(bep) unify
-func (r *Spec) IsInImageCache(key string) bool {
-	// This is used for cache pruning. We currently only have images, but we could
-	// imagine expanding on this.
-	return r.imageCache.isInCache(key)
+func (r *Spec) DeleteBySubstring(s string) {
+	r.imageCache.deleteIfContains(s)
 }
 
 func (s *Spec) String() string {

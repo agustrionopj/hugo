@@ -2,6 +2,13 @@
   "chroma": {
     "lexers": [
       {
+        "Name": "ABAP",
+        "Aliases": [
+          "ABAP",
+          "abap"
+        ]
+      },
+      {
         "Name": "ABNF",
         "Aliases": [
           "abnf"
@@ -132,6 +139,13 @@
           "cmd",
           "dosbatch",
           "winbatch"
+        ]
+      },
+      {
+        "Name": "BibTeX",
+        "Aliases": [
+          "bib",
+          "bibtex"
         ]
       },
       {
@@ -405,7 +419,8 @@
         "Aliases": [
           "forth",
           "frt",
-          "fs"
+          "fs",
+          "fth"
         ]
       },
       {
@@ -580,9 +595,24 @@
         ]
       },
       {
+        "Name": "Igor",
+        "Aliases": [
+          "igor",
+          "igorpro",
+          "ipf"
+        ]
+      },
+      {
         "Name": "Io",
         "Aliases": [
           "io"
+        ]
+      },
+      {
+        "Name": "J",
+        "Aliases": [
+          "ijs",
+          "j"
         ]
       },
       {
@@ -644,6 +674,12 @@
         "Aliases": [
           "lua",
           "wlua"
+        ]
+      },
+      {
+        "Name": "MLIR",
+        "Aliases": [
+          "mlir"
         ]
       },
       {
@@ -1084,6 +1120,14 @@
         ]
       },
       {
+        "Name": "Standard ML",
+        "Aliases": [
+          "fun",
+          "sig",
+          "sml"
+        ]
+      },
+      {
         "Name": "Swift",
         "Aliases": [
           "swift"
@@ -1101,6 +1145,13 @@
         "Name": "TOML",
         "Aliases": [
           "toml"
+        ]
+      },
+      {
+        "Name": "TableGen",
+        "Aliases": [
+          "tablegen",
+          "td"
         ]
       },
       {
@@ -1342,6 +1393,96 @@
       }
     ]
   },
+  "config": {
+    "markup": {
+      "defaultMarkdownHandler": "goldmark",
+      "highlight": {
+        "style": "monokai",
+        "codeFences": true,
+        "noClasses": true,
+        "lineNos": false,
+        "lineNumbersInTable": true,
+        "lineNoStart": 1,
+        "hl_Lines": "",
+        "tabWidth": 4,
+        "guessSyntax": false
+      },
+      "tableOfContents": {
+        "startLevel": 2,
+        "endLevel": 3,
+        "ordered": false
+      },
+      "goldmark": {
+        "renderer": {
+          "hardWraps": false,
+          "xhtml": false,
+          "unsafe": false
+        },
+        "parser": {
+          "autoHeadingID": true,
+          "autoHeadingIDType": "github",
+          "attribute": true
+        },
+        "extensions": {
+          "typographer": true,
+          "footnote": true,
+          "definitionList": true,
+          "table": true,
+          "strikethrough": true,
+          "linkify": true,
+          "taskList": true
+        }
+      },
+      "blackFriday": {
+        "smartypants": true,
+        "smartypantsQuotesNBSP": false,
+        "angledQuotes": false,
+        "fractions": true,
+        "hrefTargetBlank": false,
+        "nofollowLinks": false,
+        "noreferrerLinks": false,
+        "smartDashes": true,
+        "latexDashes": true,
+        "taskLists": true,
+        "plainIDAnchors": true,
+        "extensions": null,
+        "extensionsMask": null,
+        "skipHTML": false,
+        "footnoteAnchorPrefix": "",
+        "footnoteReturnLinkContents": ""
+      }
+    },
+    "minify": {
+      "minifyOutput": false,
+      "disableHTML": false,
+      "disableCSS": false,
+      "disableJS": false,
+      "disableJSON": false,
+      "disableSVG": false,
+      "disableXML": false,
+      "tdewolff": {
+        "html": {
+          "keepConditionalComments": true,
+          "keepDefaultAttrVals": true,
+          "keepDocumentTags": true,
+          "keepEndTags": true,
+          "keepWhitespace": false
+        },
+        "css": {
+          "decimals": -1,
+          "keepCSS2": true
+        },
+        "js": {},
+        "json": {},
+        "svg": {
+          "decimals": -1
+        },
+        "xml": {
+          "keepWhitespace": false
+        }
+      }
+    }
+  },
   "media": {
     "types": [
       {
@@ -1414,10 +1555,10 @@
         ]
       },
       {
-        "type": "image/jpg",
-        "string": "image/jpg",
+        "type": "image/jpeg",
+        "string": "image/jpeg",
         "mainType": "image",
-        "subType": "jpg",
+        "subType": "jpeg",
         "delimiter": ".",
         "suffixes": [
           "jpg",
@@ -1512,6 +1653,68 @@
         "delimiter": ".",
         "suffixes": [
           "scss"
+        ]
+      },
+      {
+        "type": "video/3gpp",
+        "string": "video/3gpp",
+        "mainType": "video",
+        "subType": "3gpp",
+        "delimiter": ".",
+        "suffixes": [
+          "3gpp",
+          "3gp"
+        ]
+      },
+      {
+        "type": "video/mp4",
+        "string": "video/mp4",
+        "mainType": "video",
+        "subType": "mp4",
+        "delimiter": ".",
+        "suffixes": [
+          "mp4"
+        ]
+      },
+      {
+        "type": "video/mpeg",
+        "string": "video/mpeg",
+        "mainType": "video",
+        "subType": "mpeg",
+        "delimiter": ".",
+        "suffixes": [
+          "mpg",
+          "mpeg"
+        ]
+      },
+      {
+        "type": "video/ogg",
+        "string": "video/ogg",
+        "mainType": "video",
+        "subType": "ogg",
+        "delimiter": ".",
+        "suffixes": [
+          "ogv"
+        ]
+      },
+      {
+        "type": "video/webm",
+        "string": "video/webm",
+        "mainType": "video",
+        "subType": "webm",
+        "delimiter": ".",
+        "suffixes": [
+          "webm"
+        ]
+      },
+      {
+        "type": "video/x-msvideo",
+        "string": "video/x-msvideo",
+        "mainType": "video",
+        "subType": "x-msvideo",
+        "delimiter": ".",
+        "suffixes": [
+          "avi"
         ]
       }
     ]
@@ -1749,6 +1952,22 @@
         ]
       },
       {
+        "Example": "Base template for single page in \"posts\" section",
+        "Kind": "page",
+        "OutputFormat": "HTML",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/posts/single-baseof.html.html",
+          "layouts/posts/baseof.html.html",
+          "layouts/posts/single-baseof.html",
+          "layouts/posts/baseof.html",
+          "layouts/_default/single-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/single-baseof.html",
+          "layouts/_default/baseof.html"
+        ]
+      },
+      {
         "Example": "Single page in \"posts\" section with layout set",
         "Kind": "page",
         "OutputFormat": "HTML",
@@ -1762,6 +1981,26 @@
           "layouts/_default/single.html.html",
           "layouts/_default/demolayout.html",
           "layouts/_default/single.html"
+        ]
+      },
+      {
+        "Example": "Base template for single page in \"posts\" section with layout set",
+        "Kind": "page",
+        "OutputFormat": "HTML",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/posts/demolayout-baseof.html.html",
+          "layouts/posts/single-baseof.html.html",
+          "layouts/posts/baseof.html.html",
+          "layouts/posts/demolayout-baseof.html",
+          "layouts/posts/single-baseof.html",
+          "layouts/posts/baseof.html",
+          "layouts/_default/demolayout-baseof.html.html",
+          "layouts/_default/single-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/demolayout-baseof.html",
+          "layouts/_default/single-baseof.html",
+          "layouts/_default/baseof.html"
         ]
       },
       {
@@ -1813,6 +2052,30 @@
         ]
       },
       {
+        "Example": "Base template for home page",
+        "Kind": "home",
+        "OutputFormat": "HTML",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/index-baseof.html.html",
+          "layouts/home-baseof.html.html",
+          "layouts/list-baseof.html.html",
+          "layouts/baseof.html.html",
+          "layouts/index-baseof.html",
+          "layouts/home-baseof.html",
+          "layouts/list-baseof.html",
+          "layouts/baseof.html",
+          "layouts/_default/index-baseof.html.html",
+          "layouts/_default/home-baseof.html.html",
+          "layouts/_default/list-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/index-baseof.html",
+          "layouts/_default/home-baseof.html",
+          "layouts/_default/list-baseof.html",
+          "layouts/_default/baseof.html"
+        ]
+      },
+      {
         "Example": "Home page with type set",
         "Kind": "home",
         "OutputFormat": "HTML",
@@ -1836,6 +2099,38 @@
           "layouts/_default/index.html",
           "layouts/_default/home.html",
           "layouts/_default/list.html"
+        ]
+      },
+      {
+        "Example": "Base template for home page with type set",
+        "Kind": "home",
+        "OutputFormat": "HTML",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/demotype/index-baseof.html.html",
+          "layouts/demotype/home-baseof.html.html",
+          "layouts/demotype/list-baseof.html.html",
+          "layouts/demotype/baseof.html.html",
+          "layouts/demotype/index-baseof.html",
+          "layouts/demotype/home-baseof.html",
+          "layouts/demotype/list-baseof.html",
+          "layouts/demotype/baseof.html",
+          "layouts/index-baseof.html.html",
+          "layouts/home-baseof.html.html",
+          "layouts/list-baseof.html.html",
+          "layouts/baseof.html.html",
+          "layouts/index-baseof.html",
+          "layouts/home-baseof.html",
+          "layouts/list-baseof.html",
+          "layouts/baseof.html",
+          "layouts/_default/index-baseof.html.html",
+          "layouts/_default/home-baseof.html.html",
+          "layouts/_default/list-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/index-baseof.html",
+          "layouts/_default/home-baseof.html",
+          "layouts/_default/list-baseof.html",
+          "layouts/_default/baseof.html"
         ]
       },
       {
@@ -2241,17 +2536,6 @@
         }
       },
       "compare": {
-        "And": {
-          "Description": "And computes the Boolean AND of its arguments, returning\nthe first false argument it encounters, or the last argument.",
-          "Args": [
-            "arg0",
-            "args"
-          ],
-          "Aliases": [
-            "and"
-          ],
-          "Examples": []
-        },
         "Conditional": {
           "Description": "Conditional can be used as a ternary operator.\nIt returns a if condition, else b.",
           "Args": [
@@ -2290,10 +2574,10 @@
           ]
         },
         "Eq": {
-          "Description": "Eq returns the boolean truth of arg1 == arg2.",
+          "Description": "Eq returns the boolean truth of arg1 == arg2 || arg1 == arg3 || arg1 == arg4.",
           "Args": [
-            "x",
-            "y"
+            "first",
+            "others"
           ],
           "Aliases": [
             "eq"
@@ -2306,10 +2590,10 @@
           ]
         },
         "Ge": {
-          "Description": "Ge returns the boolean truth of arg1 \u003e= arg2.",
+          "Description": "Ge returns the boolean truth of arg1 \u003e= arg2 \u0026\u0026 arg1 \u003e= arg3 \u0026\u0026 arg1 \u003e= arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "ge"
@@ -2322,10 +2606,10 @@
           ]
         },
         "Gt": {
-          "Description": "Gt returns the boolean truth of arg1 \u003e arg2.",
+          "Description": "Gt returns the boolean truth of arg1 \u003e arg2 \u0026\u0026 arg1 \u003e arg3 \u0026\u0026 arg1 \u003e arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "gt"
@@ -2333,10 +2617,10 @@
           "Examples": []
         },
         "Le": {
-          "Description": "Le returns the boolean truth of arg1 \u003c= arg2.",
+          "Description": "Le returns the boolean truth of arg1 \u003c= arg2 \u0026\u0026 arg1 \u003c= arg3 \u0026\u0026 arg1 \u003c= arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "le"
@@ -2344,10 +2628,10 @@
           "Examples": []
         },
         "Lt": {
-          "Description": "Lt returns the boolean truth of arg1 \u003c arg2.",
+          "Description": "Lt returns the boolean truth of arg1 \u003c arg2 \u0026\u0026 arg1 \u003c arg3 \u0026\u0026 arg1 \u003c arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "lt"
@@ -2355,34 +2639,13 @@
           "Examples": []
         },
         "Ne": {
-          "Description": "Ne returns the boolean truth of arg1 != arg2.",
+          "Description": "Ne returns the boolean truth of arg1 != arg2 \u0026\u0026 arg1 != arg3 \u0026\u0026 arg1 != arg4.",
           "Args": [
-            "x",
-            "y"
+            "first",
+            "others"
           ],
           "Aliases": [
             "ne"
-          ],
-          "Examples": []
-        },
-        "Not": {
-          "Description": "Not returns the Boolean negation of its argument.",
-          "Args": [
-            "arg"
-          ],
-          "Aliases": [
-            "not"
-          ],
-          "Examples": []
-        },
-        "Or": {
-          "Description": "Or computes the Boolean OR of its arguments, returning\nthe first true argument it encounters, or the last argument.",
-          "Args": [
-            "arg0",
-            "args"
-          ],
-          "Aliases": [
-            "or"
           ],
           "Examples": []
         }
@@ -2454,7 +2717,7 @@
           ]
         },
         "Dictionary": {
-          "Description": "Dictionary creates a map[string]interface{} from the given parameters by\nwalking the parameters and treating them as key-value pairs.  The number\nof parameters must be even.",
+          "Description": "Dictionary creates a map[string]interface{} from the given parameters by\nwalking the parameters and treating them as key-value pairs.  The number\nof parameters must be even.\nThe keys can be string slices, which will create the needed nested structure.",
           "Args": [
             "values"
           ],
@@ -2521,7 +2784,7 @@
           "Description": "Index returns the result of indexing its first argument by the following\narguments. Thus \"index x 1 2 3\" is, in Go syntax, x[1][2][3]. Each\nindexed item must be a map, slice, or array.\n\nCopied from Go stdlib src/text/template/funcs.go.\n\nWe deviate from the stdlib due to https://github.com/golang/go/issues/14751.\n\nTODO(moorereason): merge upstream changes.",
           "Args": [
             "item",
-            "indices"
+            "args"
           ],
           "Aliases": [
             "index"
@@ -2629,6 +2892,12 @@
               "\u003ca href=\"https://www.google.com?page=3\u0026amp;q=test\"\u003eSearch\u003c/a\u003e"
             ]
           ]
+        },
+        "Reverse": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         },
         "Seq": {
           "Description": "Seq creates a sequence of integers.  It's named and used as GNU's seq.\n\nExamples:\n    3 =\u003e 1, 2, 3\n    1 2 4 =\u003e 1, 3\n    -3 =\u003e -1, -2, -3\n    1 4 =\u003e 1, 2, 3, 4\n    1 -2 =\u003e 1, 0, -1, -2",
@@ -2868,7 +3137,7 @@
       },
       "fmt": {
         "Errorf": {
-          "Description": "Errorf formats according to a format specifier and returns the string as a\nvalue that satisfies error.",
+          "Description": "Errorf formats according to a format specifier and logs an ERROR.\nIt returns an empty string.",
           "Args": [
             "format",
             "a"
@@ -2879,7 +3148,7 @@
           "Examples": [
             [
               "{{ errorf \"%s.\" \"failed\" }}",
-              "failed."
+              ""
             ]
           ]
         },
@@ -2928,10 +3197,32 @@
               "works!\n"
             ]
           ]
+        },
+        "Warnf": {
+          "Description": "Warnf formats according to a format specifier and logs a WARNING.\nIt returns an empty string.",
+          "Args": [
+            "format",
+            "a"
+          ],
+          "Aliases": [
+            "warnf"
+          ],
+          "Examples": [
+            [
+              "{{ warnf \"%s.\" \"warning\" }}",
+              ""
+            ]
+          ]
         }
       },
       "hugo": {
         "Generator": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "IsProduction": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -2945,6 +3236,24 @@
         }
       },
       "images": {
+        "Brightness": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "ColorBalance": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Colorize": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Config": {
           "Description": "Config returns the image.Config for the specified path relative to the\nworking directory.",
           "Args": [
@@ -2954,6 +3263,78 @@
             "imageConfig"
           ],
           "Examples": []
+        },
+        "Contrast": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Filter": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Gamma": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "GaussianBlur": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Grayscale": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Hue": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Invert": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Pixelate": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Saturation": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Sepia": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Sigmoid": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "UnsharpMask": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         }
       },
       "inflect": {
@@ -3199,6 +3580,19 @@
             ]
           ]
         },
+        "Sqrt": {
+          "Description": "Sqrt returns the square root of a number.\nNOTE: will return for NaN for negative values of a",
+          "Args": [
+            "a"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{math.Sqrt 81}}",
+              "9"
+            ]
+          ]
+        },
         "Sub": {
           "Description": "Sub subtracts two numbers.",
           "Args": [
@@ -3297,11 +3691,11 @@
           ]
         },
         "IncludeCached": {
-          "Description": "IncludeCached executes and caches partial templates.  An optional variant\nstring parameter (a string slice actually, but be only use a variadic\nargument to make it optional) can be passed so that a given partial can have\nmultiple uses. The cache is created with name+variant as the key.",
+          "Description": "IncludeCached executes and caches partial templates.  The cache is created with name+variants as the key.",
           "Args": [
             "name",
             "context",
-            "variant"
+            "variants"
           ],
           "Aliases": [
             "partialCached"
@@ -3433,12 +3827,24 @@
           "Examples": null
         },
         "Get": {
-          "Description": "Get locates the filename given in Hugo's filesystems: static, assets and content (in that order)\nand creates a Resource object that can be used for further transformations.",
+          "Description": "Get locates the filename given in Hugo's assets filesystem\nand creates a Resource object that can be used for further transformations.",
           "Args": [
             "filename"
           ],
           "Aliases": null,
           "Examples": []
+        },
+        "GetMatch": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Match": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         },
         "Minify": {
           "Description": "Minify minifies the given Resource using the MediaType to pick the correct\nminifier.",
@@ -4109,7 +4515,7 @@
           "Examples": [
             [
               "{{ \"I :heart: Hugo\" | emojify }}",
-              "I ❤️ Hugo"
+              "I ❤ Hugo"
             ]
           ]
         },

@@ -32,8 +32,7 @@ type shortcodeVariant struct {
 	// A slice of length numTemplateVariants.
 	variants []string
 
-	info  tpl.Info
-	templ tpl.Template
+	ts *templateState
 }
 
 type shortcodeTemplates struct {
@@ -61,11 +60,6 @@ func (s *shortcodeTemplates) fromVariants(variants tpl.TemplateVariants) (shortc
 	})
 }
 
-// Get the most specific template given a full name, e.g  gtag.no.amp.html.
-func (s *shortcodeTemplates) fromName(name string) (shortcodeVariant, bool) {
-	return s.fromVariantsSlice(templateVariants(name))
-}
-
 func (s *shortcodeTemplates) fromVariantsSlice(variants []string) (shortcodeVariant, bool) {
 	var (
 		bestMatch       shortcodeVariant
@@ -88,10 +82,12 @@ func (s *shortcodeTemplates) fromVariantsSlice(variants []string) (shortcodeVari
 func (s *shortcodeTemplates) compareVariants(a, b []string) int {
 
 	weight := 0
+	k := len(a)
 	for i, av := range a {
 		bv := b[i]
 		if av == bv {
-			weight++
+			// Add more weight to the left side (language...).
+			weight = weight + k - i
 		} else {
 			weight--
 		}

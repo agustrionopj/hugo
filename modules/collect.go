@@ -19,7 +19,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/bep/debounce"
 	"github.com/gohugoio/hugo/common/loggers"
 
 	"github.com/spf13/cast"
@@ -191,6 +193,11 @@ func (c *collector) initModules() error {
 	c.collected = &collected{
 		seen:     make(map[string]bool),
 		vendored: make(map[string]vendoredModule),
+		gomods:   goModules{},
+	}
+
+	if !c.ccfg.IgnoreVendor && c.isVendored(c.ccfg.WorkingDir) {
+		return nil
 	}
 
 	// We may fail later if we don't find the mods.
@@ -463,6 +470,13 @@ func (c *collector) applyThemeConfig(tc *moduleAdapter) error {
 }
 
 func (c *collector) collect() {
+	defer c.logger.PrintTimerIfDelayed(time.Now(), "hugo: collected modules")
+	d := debounce.New(2 * time.Second)
+	d(func() {
+		c.logger.FEEDBACK.Println("hugo: downloading modules …")
+	})
+	defer d(func() {})
+
 	if err := c.initModules(); err != nil {
 		c.err = err
 		return
@@ -478,6 +492,11 @@ func (c *collector) collect() {
 	// Add the project mod on top.
 	c.modules = append(Modules{projectMod}, c.modules...)
 
+}
+
+func (c *collector) isVendored(dir string) bool {
+	_, err := c.fs.Stat(filepath.Join(dir, vendord, vendorModulesFilename))
+	return err == nil
 }
 
 func (c *collector) collectModulesTXT(owner Module) error {
@@ -529,7 +548,7 @@ func (c *collector) loadModules() error {
 	return nil
 }
 
-func (c *collector) normalizeMounts(owner Module, mounts []Mount) ([]Mount, error) {
+func (c *collector) normalizeMounts(owner *moduleAdapter, mounts []Mount) ([]Mount, error) {
 	var out []Mount
 	dir := owner.Dir()
 
@@ -543,8 +562,16 @@ func (c *collector) normalizeMounts(owner Module, mounts []Mount) ([]Mount, erro
 		mnt.Source = filepath.Clean(mnt.Source)
 		mnt.Target = filepath.Clean(mnt.Target)
 
+		var sourceDir string
+
+		if owner.projectMod && filepath.IsAbs(mnt.Source) {
+			// Abs paths in the main project is allowed.
+			sourceDir = mnt.Source
+		} else {
+			sourceDir = filepath.Join(dir, mnt.Source)
+		}
+
 		// Verify that Source exists
-		sourceDir := filepath.Join(dir, mnt.Source)
 		_, err := c.fs.Stat(sourceDir)
 		if err != nil {
 			continue

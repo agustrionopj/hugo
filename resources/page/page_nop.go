@@ -19,6 +19,8 @@ import (
 	"html/template"
 	"time"
 
+	"github.com/gohugoio/hugo/hugofs/files"
+
 	"github.com/gohugoio/hugo/hugofs"
 
 	"github.com/bep/gitmap"
@@ -83,7 +85,7 @@ func (p *nopPage) BaseFileName() string {
 	return ""
 }
 
-func (p *nopPage) BundleType() string {
+func (p *nopPage) BundleType() files.ContentClass {
 	return ""
 }
 
@@ -169,6 +171,10 @@ func (p *nopPage) GetPage(ref string) (Page, error) {
 }
 
 func (p *nopPage) GetParam(key string) interface{} {
+	return nil
+}
+
+func (p *nopPage) GetTerms(taxonomy string) Pages {
 	return nil
 }
 
@@ -288,6 +294,10 @@ func (p *nopPage) RegularPages() Pages {
 	return nil
 }
 
+func (p *nopPage) RegularPagesRecursive() Pages {
+	return nil
+}
+
 func (p *nopPage) Paginate(seq interface{}, options ...interface{}) (*Pager, error) {
 	return nil, nil
 }
@@ -300,7 +310,7 @@ func (p *nopPage) Param(key interface{}) (interface{}, error) {
 	return nil, nil
 }
 
-func (p *nopPage) Params() map[string]interface{} {
+func (p *nopPage) Params() maps.Params {
 	return nil
 }
 
@@ -371,8 +381,12 @@ func (p *nopPage) RelRef(argsm map[string]interface{}) (string, error) {
 	return "", nil
 }
 
-func (p *nopPage) Render(layout ...string) template.HTML {
-	return ""
+func (p *nopPage) Render(layout ...string) (template.HTML, error) {
+	return "", nil
+}
+
+func (p *nopPage) RenderString(args ...interface{}) (template.HTML, error) {
+	return "", nil
 }
 
 func (p *nopPage) ResourceType() string {

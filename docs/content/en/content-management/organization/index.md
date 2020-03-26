@@ -46,7 +46,7 @@ Without any additional configuration, the following will just work:
 .
 └── content
     └── about
-    |   └── _index.md  // <- https://example.com/about/
+    |   └── index.md  // <- https://example.com/about/
     ├── posts
     |   ├── firstpost.md   // <- https://example.com/posts/firstpost/
     |   ├── happy
@@ -173,7 +173,7 @@ When defined in the front matter, the `slug` can take the place of the filename 
 
 {{< code file="content/posts/old-post.md" >}}
 ---
-title: New Post
+title: A new post with the filename old-post.md
 slug: "new-post"
 ---
 {{< /code >}}

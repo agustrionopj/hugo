@@ -21,6 +21,27 @@ import (
 	qt "github.com/frankban/quicktest"
 )
 
+// The most basic build test.
+func TestHello(t *testing.T) {
+	t.Parallel()
+	b := newTestSitesBuilder(t)
+	b.WithConfigFile("toml", `
+baseURL="https://example.org"
+disableKinds = ["taxonomy", "taxonomyTerm", "section", "page"]
+`)
+	b.WithContent("p1", `
+---
+title: Page
+---
+
+`)
+	b.WithTemplates("index.html", `Site: {{ .Site.Language.Lang | upper }}`)
+
+	b.Build(BuildCfg{})
+
+	b.AssertFileContent("public/index.html", `Site: EN`)
+}
+
 func TestSmoke(t *testing.T) {
 	t.Parallel()
 
@@ -300,34 +321,4 @@ The content.
 	b.WithTemplatesAdded("_default/list.html", "HTML List: "+commonTemplate)
 
 	b.CreateSites().Build(BuildCfg{})
-}
-
-func TestBundleMany(t *testing.T) {
-
-	b := newTestSitesBuilder(t).WithSimpleConfigFile()
-	for i := 1; i <= 50; i++ {
-		b.WithContent(fmt.Sprintf("bundle%d/index.md", i), fmt.Sprintf(`
----
-title: "Page %d"
----
-		
-`, i))
-		b.WithSourceFile(fmt.Sprintf("content/bundle%d/data.yaml", i), fmt.Sprintf(`
-data: v%d		
-`, i))
-	}
-
-	b.WithTemplatesAdded("_default/single.html", `
-{{ $yaml := .Resources.GetMatch "*.yaml" }}
-{{ $data := $yaml | transform.Unmarshal }}
-data content: {{ $yaml.Content | safeHTML }}
-data unmarshaled: {{ $data.data }}
-`)
-
-	b.CreateSites().Build(BuildCfg{})
-
-	for i := 1; i <= 50; i++ {
-		b.AssertFileContent(fmt.Sprintf("public/bundle%d/data.yaml", i), fmt.Sprintf("data: v%d", i))
-		b.AssertFileContent(fmt.Sprintf("public/bundle%d/index.html", i), fmt.Sprintf("data unmarshaled: v%d", i))
-	}
 }

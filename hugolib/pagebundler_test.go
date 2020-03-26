@@ -20,6 +20,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gohugoio/hugo/hugofs/files"
+
+	"github.com/gohugoio/hugo/helpers"
+
 	"github.com/gohugoio/hugo/hugofs"
 
 	"github.com/gohugoio/hugo/common/loggers"
@@ -62,7 +66,7 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 						if canonify {
 							relURLBase = ""
 						}
-						fs, cfg := newTestBundleSources(t)
+						fs, cfg := newTestBundleSources(c)
 						cfg.Set("baseURL", baseURL)
 						cfg.Set("canonifyURLs", canonify)
 
@@ -90,7 +94,7 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 
 						cfg.Set("uglyURLs", ugly)
 
-						b := newTestSitesBuilderFromDepsCfg(t, deps.DepsCfg{Logger: loggers.NewErrorLogger(), Fs: fs, Cfg: cfg}).WithNothingAdded()
+						b := newTestSitesBuilderFromDepsCfg(c, deps.DepsCfg{Logger: loggers.NewErrorLogger(), Fs: fs, Cfg: cfg}).WithNothingAdded()
 
 						b.Build(BuildCfg{})
 
@@ -99,7 +103,7 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 						c.Assert(len(s.RegularPages()), qt.Equals, 8)
 
 						singlePage := s.getPage(page.KindPage, "a/1.md")
-						c.Assert(singlePage.BundleType(), qt.Equals, "")
+						c.Assert(singlePage.BundleType(), qt.Equals, files.ContentClass(""))
 
 						c.Assert(singlePage, qt.Not(qt.IsNil))
 						c.Assert(s.getPage("page", "a/1"), qt.Equals, singlePage)
@@ -146,12 +150,12 @@ func TestPageBundlerSiteRegular(t *testing.T) {
 
 						leafBundle1 := s.getPage(page.KindPage, "b/my-bundle/index.md")
 						c.Assert(leafBundle1, qt.Not(qt.IsNil))
-						c.Assert(leafBundle1.BundleType(), qt.Equals, "leaf")
+						c.Assert(leafBundle1.BundleType(), qt.Equals, files.ContentClassLeaf)
 						c.Assert(leafBundle1.Section(), qt.Equals, "b")
 						sectionB := s.getPage(page.KindSection, "b")
 						c.Assert(sectionB, qt.Not(qt.IsNil))
 						home, _ := s.Info.Home()
-						c.Assert(home.BundleType(), qt.Equals, "branch")
+						c.Assert(home.BundleType(), qt.Equals, files.ContentClassBranch)
 
 						// This is a root bundle and should live in the "home section"
 						// See https://github.com/gohugoio/hugo/issues/4332
@@ -385,12 +389,10 @@ func TestMultilingualDisableLanguage(t *testing.T) {
 	c.Assert(len(s.Pages()), qt.Equals, 16)
 	// No nn pages
 	c.Assert(len(s.AllPages()), qt.Equals, 16)
-	for _, p := range s.rawAllPages {
+	s.pageMap.withEveryBundlePage(func(p *pageState) bool {
 		c.Assert(p.Language().Lang != "nn", qt.Equals, true)
-	}
-	for _, p := range s.AllPages() {
-		c.Assert(p.Language().Lang != "nn", qt.Equals, true)
-	}
+		return false
+	})
 
 }
 
@@ -547,7 +549,6 @@ HEADLESS {{< myShort >}}
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{})
 
 	c.Assert(len(s.RegularPages()), qt.Equals, 1)
-	c.Assert(len(s.headlessPages), qt.Equals, 1)
 
 	regular := s.getPage(page.KindPage, "a/index")
 	c.Assert(regular.RelPermalink(), qt.Equals, "/s1/")
@@ -577,6 +578,49 @@ HEADLESS {{< myShort >}}
 	// But the bundled resources needs to be published
 	th.assertFileContent(filepath.FromSlash(workDir+"/public/s2/l1.png"), "PNG")
 
+	// No headless bundles here, please.
+	// https://github.com/gohugoio/hugo/issues/6492
+	c.Assert(s.RegularPages(), qt.HasLen, 1)
+	c.Assert(s.home.RegularPages(), qt.HasLen, 1)
+	c.Assert(s.home.Pages(), qt.HasLen, 1)
+
+}
+
+func TestPageBundlerHeadlessIssue6552(t *testing.T) {
+	t.Parallel()
+
+	b := newTestSitesBuilder(t)
+	b.WithContent("headless/h1/index.md", `
+---
+title: My Headless Bundle1
+headless: true
+---
+`, "headless/h1/p1.md", `
+---
+title: P1
+---
+`, "headless/h2/index.md", `
+---
+title: My Headless Bundle2
+headless: true
+---
+`)
+
+	b.WithTemplatesAdded("index.html", `
+{{ $headless1 := .Site.GetPage "headless/h1" }}
+{{ $headless2 := .Site.GetPage "headless/h2" }}
+
+HEADLESS1: {{ $headless1.Title }}|{{ $headless1.RelPermalink }}|{{ len $headless1.Resources }}|
+HEADLESS2: {{ $headless2.Title }}{{ $headless2.RelPermalink }}|{{ len $headless2.Resources }}|
+
+`)
+
+	b.Build(BuildCfg{})
+
+	b.AssertFileContent("public/index.html", `
+HEADLESS1: My Headless Bundle1||1|
+HEADLESS2: My Headless Bundle2|0|
+`)
 }
 
 func TestMultiSiteBundles(t *testing.T) {
@@ -664,7 +708,7 @@ Single content.
 
 }
 
-func newTestBundleSources(t *testing.T) (*hugofs.Fs, *viper.Viper) {
+func newTestBundleSources(t testing.TB) (*hugofs.Fs, *viper.Viper) {
 	cfg, fs := newTestCfgBasic()
 	c := qt.New(t)
 
@@ -766,6 +810,7 @@ Short Thumb Width: {{ $thumb.Width }}
 	writeSource(t, fs, filepath.Join(workDir, "layouts", "_default", "single.html"), singleLayout)
 	writeSource(t, fs, filepath.Join(workDir, "layouts", "_default", "list.html"), listLayout)
 	writeSource(t, fs, filepath.Join(workDir, "layouts", "shortcodes", "myShort.html"), myShort)
+	writeSource(t, fs, filepath.Join(workDir, "layouts", "shortcodes", "myShort.customo"), myShort)
 
 	writeSource(t, fs, filepath.Join(workDir, "base", "_index.md"), pageContent)
 	writeSource(t, fs, filepath.Join(workDir, "base", "_1.md"), pageContent)
@@ -1101,18 +1146,15 @@ baseURL = "https://example.org"
 defaultContentLanguage = "en"
 defaultContentLanguageInSubDir = true
 disableKinds = ["taxonomyTerm", "taxonomy"]
-
 [languages]
 [languages.nn]
 languageName = "Nynorsk"
 weight = 2
 title = "Tittel på Nynorsk"
-
 [languages.en]
 title = "Title in English"
 languageName = "English"
 weight = 1
-
 `
 
 	pageContent := func(id string) string {
@@ -1215,4 +1257,110 @@ title: %q
         page|bundle sub p2|
 `)
 
+}
+
+func TestBundleTransformMany(t *testing.T) {
+
+	b := newTestSitesBuilder(t).WithSimpleConfigFile().Running()
+
+	for i := 1; i <= 50; i++ {
+		b.WithContent(fmt.Sprintf("bundle%d/index.md", i), fmt.Sprintf(`
+---
+title: "Page"
+weight: %d
+---
+		
+`, i))
+		b.WithSourceFile(fmt.Sprintf("content/bundle%d/data.yaml", i), fmt.Sprintf(`data: v%d`, i))
+		b.WithSourceFile(fmt.Sprintf("content/bundle%d/data.json", i), fmt.Sprintf(`{ "data": "v%d" }`, i))
+		b.WithSourceFile(fmt.Sprintf("assets/data%d/data.yaml", i), fmt.Sprintf(`vdata: v%d`, i))
+
+	}
+
+	b.WithTemplatesAdded("_default/single.html", `
+{{ $bundleYaml := .Resources.GetMatch "*.yaml" }}
+{{ $bundleJSON := .Resources.GetMatch "*.json" }}
+{{ $assetsYaml := resources.GetMatch (printf "data%d/*.yaml" .Weight) }}
+{{ $data1 := $bundleYaml | transform.Unmarshal }}
+{{ $data2 := $assetsYaml | transform.Unmarshal }}
+{{ $bundleFingerprinted := $bundleYaml | fingerprint "md5" }}
+{{ $assetsFingerprinted := $assetsYaml | fingerprint "md5" }}
+{{ $jsonMin := $bundleJSON | minify }}
+{{ $jsonMinMin := $jsonMin | minify }}
+{{ $jsonMinMinMin := $jsonMinMin | minify }}
+
+data content unmarshaled: {{ $data1.data }}
+data assets content unmarshaled: {{ $data2.vdata }}
+bundle fingerprinted: {{ $bundleFingerprinted.RelPermalink }}
+assets fingerprinted: {{ $assetsFingerprinted.RelPermalink }}
+
+bundle min min min: {{ $jsonMinMinMin.RelPermalink }}
+bundle min min key: {{ $jsonMinMin.Key }}
+
+`)
+
+	for i := 0; i < 3; i++ {
+
+		b.Build(BuildCfg{})
+
+		for i := 1; i <= 50; i++ {
+			index := fmt.Sprintf("public/bundle%d/index.html", i)
+			b.AssertFileContent(fmt.Sprintf("public/bundle%d/data.yaml", i), fmt.Sprintf("data: v%d", i))
+			b.AssertFileContent(index, fmt.Sprintf("data content unmarshaled: v%d", i))
+			b.AssertFileContent(index, fmt.Sprintf("data assets content unmarshaled: v%d", i))
+
+			md5Asset := helpers.MD5String(fmt.Sprintf(`vdata: v%d`, i))
+			b.AssertFileContent(index, fmt.Sprintf("assets fingerprinted: /data%d/data.%s.yaml", i, md5Asset))
+
+			// The original is not used, make sure it's not published.
+			b.Assert(b.CheckExists(fmt.Sprintf("public/data%d/data.yaml", i)), qt.Equals, false)
+
+			md5Bundle := helpers.MD5String(fmt.Sprintf(`data: v%d`, i))
+			b.AssertFileContent(index, fmt.Sprintf("bundle fingerprinted: /bundle%d/data.%s.yaml", i, md5Bundle))
+
+			b.AssertFileContent(index,
+				fmt.Sprintf("bundle min min min: /bundle%d/data.min.min.min.json", i),
+				fmt.Sprintf("bundle min min key: /bundle%d/data.min.min.json", i),
+			)
+			b.Assert(b.CheckExists(fmt.Sprintf("public/bundle%d/data.min.min.min.json", i)), qt.Equals, true)
+			b.Assert(b.CheckExists(fmt.Sprintf("public/bundle%d/data.min.json", i)), qt.Equals, false)
+			b.Assert(b.CheckExists(fmt.Sprintf("public/bundle%d/data.min.min.json", i)), qt.Equals, false)
+
+		}
+
+		b.EditFiles("assets/data/foo.yaml", "FOO")
+
+	}
+}
+
+func TestPageBundlerHome(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	workDir, clean, err := htesting.CreateTempDir(hugofs.Os, "hugo-bundler-home")
+	c.Assert(err, qt.IsNil)
+
+	cfg := viper.New()
+	cfg.Set("workingDir", workDir)
+	fs := hugofs.NewFrom(hugofs.Os, cfg)
+
+	os.MkdirAll(filepath.Join(workDir, "content"), 0777)
+
+	defer clean()
+
+	b := newTestSitesBuilder(t)
+	b.Fs = fs
+
+	b.WithWorkingDir(workDir).WithViper(cfg)
+
+	b.WithContent("_index.md", "---\ntitle: Home\n---\n![Alt text](image.jpg)")
+	b.WithSourceFile("content/data.json", "DATA")
+
+	b.WithTemplates("index.html", `Title: {{ .Title }}|First Resource: {{ index .Resources 0 }}|Content: {{ .Content }}`)
+	b.WithTemplates("_default/_markup/render-image.html", `Hook Len Page Resources {{ len .Page.Resources }}`)
+
+	b.Build(BuildCfg{})
+	b.AssertFileContent("public/index.html", `
+Title: Home|First Resource: data.json|Content: <p>Hook Len Page Resources 1</p>
+`)
 }

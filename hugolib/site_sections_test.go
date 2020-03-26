@@ -303,7 +303,7 @@ PAG|{{ .Title }}|{{ $sect.InSection . }}
 			c := qt.New(t)
 			sections := strings.Split(test.sections, ",")
 			p := s.getPage(page.KindSection, sections...)
-			c.Assert(p, qt.Not(qt.IsNil))
+			c.Assert(p, qt.Not(qt.IsNil), qt.Commentf(fmt.Sprint(sections)))
 
 			if p.Pages() != nil {
 				c.Assert(p.Data().(page.Data).Pages(), deepEqualsPages, p.Pages())
@@ -321,6 +321,8 @@ PAG|{{ .Title }}|{{ $sect.InSection . }}
 	rootPage := s.getPage(page.KindPage, "mypage.md")
 	c.Assert(rootPage, qt.Not(qt.IsNil))
 	c.Assert(rootPage.Parent().IsHome(), qt.Equals, true)
+	// https://github.com/gohugoio/hugo/issues/6365
+	c.Assert(rootPage.Sections(), qt.HasLen, 0)
 
 	// Add a odd test for this as this looks a little bit off, but I'm not in the mood
 	// to think too hard a out this right now. It works, but people will have to spell

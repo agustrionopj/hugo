@@ -118,9 +118,9 @@ func Execute(args []string) Response {
 func initializeConfig(mustHaveConfigFile, running bool,
 	h *hugoBuilderCommon,
 	f flagsToConfigHandler,
-	doWithCommandeer func(c *commandeer) error) (*commandeer, error) {
+	cfgInit func(c *commandeer) error) (*commandeer, error) {
 
-	c, err := newCommandeer(mustHaveConfigFile, running, h, f, doWithCommandeer)
+	c, err := newCommandeer(mustHaveConfigFile, running, h, f, cfgInit)
 	if err != nil {
 		return nil, err
 	}
@@ -134,9 +134,13 @@ func (c *commandeer) createLogger(cfg config.Provider, running bool) (*loggers.L
 		logHandle       = ioutil.Discard
 		logThreshold    = jww.LevelWarn
 		logFile         = cfg.GetString("logFile")
-		outHandle       = os.Stdout
+		outHandle       = ioutil.Discard
 		stdoutThreshold = jww.LevelWarn
 	)
+
+	if !c.h.quiet {
+		outHandle = os.Stdout
+	}
 
 	if c.h.verboseLog || c.h.logging || (c.h.logFile != "") {
 		var err error
@@ -227,11 +231,6 @@ func initializeFlags(cmd *cobra.Command, cfg config.Provider) {
 		"duplicateTargetPaths",
 	}
 
-	// Will set a value even if it is the default.
-	flagKeysForced := []string{
-		"minify",
-	}
-
 	for _, key := range persFlagKeys {
 		setValueFromFlag(cmd.PersistentFlags(), key, cfg, "", false)
 	}
@@ -239,9 +238,7 @@ func initializeFlags(cmd *cobra.Command, cfg config.Provider) {
 		setValueFromFlag(cmd.Flags(), key, cfg, "", false)
 	}
 
-	for _, key := range flagKeysForced {
-		setValueFromFlag(cmd.Flags(), key, cfg, "", true)
-	}
+	setValueFromFlag(cmd.Flags(), "minify", cfg, "minifyOutput", true)
 
 	// Set some "config aliases"
 	setValueFromFlag(cmd.Flags(), "destination", cfg, "publishDir", false)
@@ -463,8 +460,6 @@ func (c *commandeer) initProfiling() (func(), error) {
 }
 
 func (c *commandeer) build() error {
-	defer c.timeTrack(time.Now(), "Total")
-
 	stopProfiling, err := c.initProfiling()
 	if err != nil {
 		return err
@@ -519,7 +514,7 @@ func (c *commandeer) build() error {
 }
 
 func (c *commandeer) serverBuild() error {
-	defer c.timeTrack(time.Now(), "Total")
+	defer c.timeTrack(time.Now(), "Built")
 
 	stopProfiling, err := c.initProfiling()
 	if err != nil {
@@ -659,16 +654,13 @@ func (c *commandeer) firstPathSpec() *helpers.PathSpec {
 }
 
 func (c *commandeer) timeTrack(start time.Time, name string) {
-	if c.h.quiet {
-		return
-	}
 	elapsed := time.Since(start)
 	c.logger.FEEDBACK.Printf("%s in %v ms", name, int(1000*elapsed.Seconds()))
 }
 
 // getDirList provides NewWatcher() with a list of directories to watch for changes.
 func (c *commandeer) getDirList() ([]string, error) {
-	var dirnames []string
+	var filenames []string
 
 	walkFn := func(path string, fi hugofs.FileMetaInfo, err error) error {
 		if err != nil {
@@ -682,25 +674,29 @@ func (c *commandeer) getDirList() ([]string, error) {
 				return filepath.SkipDir
 			}
 
-			dirnames = append(dirnames, fi.Meta().Filename())
+			filenames = append(filenames, fi.Meta().Filename())
 		}
 
 		return nil
 
 	}
 
-	watchDirs := c.hugo().PathSpec.BaseFs.WatchDirs()
-	for _, watchDir := range watchDirs {
+	watchFiles := c.hugo().PathSpec.BaseFs.WatchDirs()
+	for _, fi := range watchFiles {
+		if !fi.IsDir() {
+			filenames = append(filenames, fi.Meta().Filename())
+			continue
+		}
 
-		w := hugofs.NewWalkway(hugofs.WalkwayConfig{Logger: c.logger, Info: watchDir, WalkFn: walkFn})
+		w := hugofs.NewWalkway(hugofs.WalkwayConfig{Logger: c.logger, Info: fi, WalkFn: walkFn})
 		if err := w.Walk(); err != nil {
 			c.logger.ERROR.Println("walker: ", err)
 		}
 	}
 
-	dirnames = helpers.UniqueStringsSorted(dirnames)
+	filenames = helpers.UniqueStringsSorted(filenames)
 
-	return dirnames, nil
+	return filenames, nil
 }
 
 func (c *commandeer) buildSites() (err error) {
@@ -713,7 +709,7 @@ func (c *commandeer) handleBuildErr(err error, msg string) {
 	c.logger.ERROR.Print(msg + ":\n\n")
 	c.logger.ERROR.Println(helpers.FirstUpper(err.Error()))
 	if !c.h.quiet && c.h.verbose {
-		herrors.PrintStackTrace(err)
+		herrors.PrintStackTraceFromErr(err)
 	}
 }
 
@@ -735,16 +731,19 @@ func (c *commandeer) rebuildSites(events []fsnotify.Event) error {
 		}
 
 	}
-	return c.hugo().Build(hugolib.BuildCfg{RecentlyVisited: visited}, events...)
+	return c.hugo().Build(hugolib.BuildCfg{RecentlyVisited: visited, ErrRecovery: c.wasError}, events...)
 }
 
 func (c *commandeer) partialReRender(urls ...string) error {
+	defer func() {
+		c.wasError = false
+	}()
 	c.buildErr = nil
 	visited := make(map[string]bool)
 	for _, url := range urls {
 		visited[url] = true
 	}
-	return c.hugo().Build(hugolib.BuildCfg{RecentlyVisited: visited, PartialReRender: true})
+	return c.hugo().Build(hugolib.BuildCfg{RecentlyVisited: visited, PartialReRender: true, ErrRecovery: c.wasError})
 }
 
 func (c *commandeer) fullRebuild(changeType string) {
@@ -773,7 +772,7 @@ func (c *commandeer) fullRebuild(changeType string) {
 			time.Sleep(2 * time.Second)
 		}()
 
-		defer c.timeTrack(time.Now(), "Total")
+		defer c.timeTrack(time.Now(), "Rebuilt")
 
 		c.commandeerHugoState = newCommandeerHugoState()
 		err := c.loadConfig(true, true)
@@ -876,6 +875,10 @@ func (c *commandeer) handleEvents(watcher *watcher.Batcher,
 	staticSyncer *staticSyncer,
 	evs []fsnotify.Event,
 	configSet map[string]bool) {
+
+	defer func() {
+		c.wasError = false
+	}()
 
 	var isHandled bool
 
@@ -1071,10 +1074,11 @@ func (c *commandeer) handleEvents(watcher *watcher.Batcher,
 			// Will block forever trying to write to a channel that nobody is reading if livereload isn't initialized
 
 			// force refresh when more than one file
-			if len(staticEvents) == 1 {
+			if !c.wasError && len(staticEvents) == 1 {
 				ev := staticEvents[0]
 				path := c.hugo().BaseFs.SourceFilesystems.MakeStaticPathRelative(ev.Name)
 				path = c.firstPathSpec().RelURL(helpers.ToSlashTrimLeading(path), false)
+
 				livereload.RefreshPath(path)
 			} else {
 				livereload.ForceRefresh()
@@ -1098,6 +1102,10 @@ func (c *commandeer) handleEvents(watcher *watcher.Batcher,
 
 		if doLiveReload {
 			if len(partitionedEvents.ContentEvents) == 0 && len(partitionedEvents.AssetEvents) > 0 {
+				if c.wasError {
+					livereload.ForceRefresh()
+					return
+				}
 				changed := c.changeDetector.changed()
 				if c.changeDetector != nil && len(changed) == 0 {
 					// Nothing has changed.

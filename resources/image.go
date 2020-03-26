@@ -17,6 +17,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image"
+	"image/color"
 	"image/draw"
 	_ "image/gif"
 	_ "image/png"
@@ -33,16 +34,13 @@ import (
 	"github.com/gohugoio/hugo/cache/filecache"
 	"github.com/gohugoio/hugo/resources/images/exif"
 
-	"github.com/gohugoio/hugo/resources/internal"
-
 	"github.com/gohugoio/hugo/resources/resource"
 
+	"github.com/pkg/errors"
 	_errors "github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/resources/images"
-
-	// Blind import for image.Decode
 
 	// Blind import for image.Decode
 	_ "golang.org/x/image/webp"
@@ -89,7 +87,7 @@ func (i *imageResource) getExif() (*exif.Exif, error) {
 
 		key := i.getImageMetaCacheTargetPath()
 
-		read := func(info filecache.ItemInfo, r io.Reader) error {
+		read := func(info filecache.ItemInfo, r io.ReadSeeker) error {
 			meta := &imageMeta{}
 			data, err := ioutil.ReadAll(r)
 			if err != nil {
@@ -219,16 +217,12 @@ func (i *imageResource) Filter(filters ...interface{}) (resource.Image, error) {
 		gfilters = append(gfilters, images.ToFilters(f)...)
 	}
 
-	conf.Key = internal.HashString(gfilters)
+	conf.Key = helpers.HashString(gfilters)
+	conf.TargetFormat = i.Format
 
 	return i.doWithImageConfig(conf, func(src image.Image) (image.Image, error) {
 		return i.Proc.Filter(src, gfilters...)
 	})
-}
-
-func (i *imageResource) isJPEG() bool {
-	name := strings.ToLower(i.getResourcePaths().relTargetDirFile.file)
-	return strings.HasSuffix(name, ".jpg") || strings.HasSuffix(name, ".jpeg")
 }
 
 // Serialize image processing. The imaging library spins up its own set of Go routines,
@@ -241,7 +235,7 @@ const imageProcWorkers = 1
 var imageProcSem = make(chan bool, imageProcWorkers)
 
 func (i *imageResource) doWithImageConfig(conf images.ImageConfig, f func(src image.Image) (image.Image, error)) (resource.Image, error) {
-	return i.getSpec().imageCache.getOrCreate(i, conf, func() (*imageResource, image.Image, error) {
+	img, err := i.getSpec().imageCache.getOrCreate(i, conf, func() (*imageResource, image.Image, error) {
 		imageProcSem <- true
 		defer func() {
 			<-imageProcSem
@@ -260,10 +254,32 @@ func (i *imageResource) doWithImageConfig(conf images.ImageConfig, f func(src im
 			return nil, nil, &os.PathError{Op: errOp, Path: errPath, Err: err}
 		}
 
-		if i.Format == images.PNG {
+		hasAlpha := !images.IsOpaque(converted)
+		shouldFill := conf.BgColor != nil && hasAlpha
+		shouldFill = shouldFill || (!conf.TargetFormat.SupportsTransparency() && hasAlpha)
+		var bgColor color.Color
+
+		if shouldFill {
+			bgColor = conf.BgColor
+			if bgColor == nil {
+				bgColor = i.Proc.Cfg.BgColor
+			}
+			tmp := image.NewRGBA(converted.Bounds())
+			draw.Draw(tmp, tmp.Bounds(), image.NewUniform(bgColor), image.Point{}, draw.Src)
+			draw.Draw(tmp, tmp.Bounds(), converted, converted.Bounds().Min, draw.Over)
+			converted = tmp
+		}
+
+		if conf.TargetFormat == images.PNG {
 			// Apply the colour palette from the source
 			if paletted, ok := src.(*image.Paletted); ok {
-				tmp := image.NewPaletted(converted.Bounds(), paletted.Palette)
+				palette := paletted.Palette
+				if bgColor != nil && len(palette) < 256 {
+					palette = images.AddColorToPalette(bgColor, palette)
+				} else if bgColor != nil {
+					images.ReplaceColorInPalette(bgColor, palette)
+				}
+				tmp := image.NewPaletted(converted.Bounds(), palette)
 				draw.FloydSteinberg.Draw(tmp, tmp.Bounds(), converted, converted.Bounds().Min)
 				converted = tmp
 			}
@@ -271,22 +287,41 @@ func (i *imageResource) doWithImageConfig(conf images.ImageConfig, f func(src im
 
 		ci := i.clone(converted)
 		ci.setBasePath(conf)
+		ci.Format = conf.TargetFormat
+		ci.setMediaType(conf.TargetFormat.MediaType())
 
 		return ci, converted, nil
 	})
+
+	if err != nil {
+		if i.root != nil && i.root.getFileInfo() != nil {
+			return nil, errors.Wrapf(err, "image %q", i.root.getFileInfo().Meta().Filename())
+		}
+	}
+	return img, nil
 }
 
 func (i *imageResource) decodeImageConfig(action, spec string) (images.ImageConfig, error) {
-	conf, err := images.DecodeImageConfig(action, spec, i.Proc.Cfg)
+	conf, err := images.DecodeImageConfig(action, spec, i.Proc.Cfg.Cfg)
 	if err != nil {
 		return conf, err
 	}
 
-	iconf := i.Proc.Cfg
+	// default to the source format
+	if conf.TargetFormat == 0 {
+		conf.TargetFormat = i.Format
+	}
 
-	if conf.Quality <= 0 && i.isJPEG() {
+	if conf.Quality <= 0 && conf.TargetFormat.RequiresDefaultQuality() {
 		// We need a quality setting for all JPEGs
-		conf.Quality = iconf.Quality
+		conf.Quality = i.Proc.Cfg.Cfg.Quality
+	}
+
+	if conf.BgColor == nil && conf.TargetFormat != i.Format {
+		if i.Format.SupportsTransparency() && !conf.TargetFormat.SupportsTransparency() {
+			conf.BgColor = i.Proc.Cfg.BgColor
+			conf.BgColorStr = i.Proc.Cfg.Cfg.BgColor
+		}
 	}
 
 	return conf, nil
@@ -326,19 +361,22 @@ func (i *imageResource) setBasePath(conf images.ImageConfig) {
 func (i *imageResource) getImageMetaCacheTargetPath() string {
 	const imageMetaVersionNumber = 1 // Increment to invalidate the meta cache
 
-	cfg := i.getSpec().imaging.Cfg
+	cfg := i.getSpec().imaging.Cfg.Cfg
 	df := i.getResourcePaths().relTargetDirFile
 	if fi := i.getFileInfo(); fi != nil {
 		df.dir = filepath.Dir(fi.Meta().Path())
 	}
 	p1, _ := helpers.FileAndExt(df.file)
 	h, _ := i.hash()
-	idStr := internal.HashString(h, i.size(), imageMetaVersionNumber, cfg)
+	idStr := helpers.HashString(h, i.size(), imageMetaVersionNumber, cfg)
 	return path.Join(df.dir, fmt.Sprintf("%s_%s.json", p1, idStr))
 }
 
 func (i *imageResource) relTargetPathFromConfig(conf images.ImageConfig) dirFile {
 	p1, p2 := helpers.FileAndExt(i.getResourcePaths().relTargetDirFile.file)
+	if conf.TargetFormat != i.Format {
+		p2 = conf.TargetFormat.DefaultExtension()
+	}
 
 	h, _ := i.hash()
 	idStr := fmt.Sprintf("_hu%s_%d", h, i.size())

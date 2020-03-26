@@ -23,6 +23,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/resources/images/exif"
 
 	"github.com/disintegration/gift"
@@ -50,16 +51,13 @@ func NewImage(f Format, proc *ImageProcessor, img image.Image, s Spec) *Image {
 
 type Image struct {
 	Format Format
-
-	Proc *ImageProcessor
-
-	Spec Spec
-
+	Proc   *ImageProcessor
+	Spec   Spec
 	*imageConfig
 }
 
 func (i *Image) EncodeTo(conf ImageConfig, img image.Image, w io.Writer) error {
-	switch i.Format {
+	switch conf.TargetFormat {
 	case JPEG:
 
 		var rgba *image.RGBA
@@ -125,6 +123,15 @@ func (i Image) WithSpec(s Spec) *Image {
 	return &i
 }
 
+// InitConfig reads the image config from the given reader.
+func (i *Image) InitConfig(r io.Reader) error {
+	var err error
+	i.configInit.Do(func() {
+		i.config, _, err = image.DecodeConfig(r)
+	})
+	return err
+}
+
 func (i *Image) initConfig() error {
 	var err error
 	i.configInit.Do(func() {
@@ -132,10 +139,7 @@ func (i *Image) initConfig() error {
 			return
 		}
 
-		var (
-			f      hugio.ReadSeekCloser
-			config image.Config
-		)
+		var f hugio.ReadSeekCloser
 
 		f, err = i.Spec.ReadSeekCloser()
 		if err != nil {
@@ -143,11 +147,7 @@ func (i *Image) initConfig() error {
 		}
 		defer f.Close()
 
-		config, _, err = image.DecodeConfig(f)
-		if err != nil {
-			return
-		}
-		i.config = config
+		i.config, _, err = image.DecodeConfig(f)
 	})
 
 	if err != nil {
@@ -157,8 +157,8 @@ func (i *Image) initConfig() error {
 	return nil
 }
 
-func NewImageProcessor(cfg Imaging) (*ImageProcessor, error) {
-	e := cfg.Exif
+func NewImageProcessor(cfg ImagingConfig) (*ImageProcessor, error) {
+	e := cfg.Cfg.Exif
 	exifDecoder, err := exif.NewDecoder(
 		exif.WithDateDisabled(e.DisableDate),
 		exif.WithLatLongDisabled(e.DisableLatLong),
@@ -178,7 +178,7 @@ func NewImageProcessor(cfg Imaging) (*ImageProcessor, error) {
 }
 
 type ImageProcessor struct {
-	Cfg         Imaging
+	Cfg         ImagingConfig
 	exifDecoder *exif.Decoder
 }
 
@@ -217,7 +217,12 @@ func (p *ImageProcessor) ApplyFiltersFromConfig(src image.Image, conf ImageConfi
 		return nil, errors.Errorf("unsupported action: %q", conf.Action)
 	}
 
-	return p.Filter(src, filters...)
+	img, err := p.Filter(src, filters...)
+	if err != nil {
+		return nil, err
+	}
+
+	return img, nil
 }
 
 func (p *ImageProcessor) Filter(src image.Image, filters ...gift.Filter) (image.Image, error) {
@@ -230,7 +235,7 @@ func (p *ImageProcessor) Filter(src image.Image, filters ...gift.Filter) (image.
 func (p *ImageProcessor) GetDefaultImageConfig(action string) ImageConfig {
 	return ImageConfig{
 		Action:  action,
-		Quality: p.Cfg.Quality,
+		Quality: p.Cfg.Cfg.Quality,
 	}
 }
 
@@ -249,6 +254,40 @@ const (
 	TIFF
 	BMP
 )
+
+// RequiresDefaultQuality returns if the default quality needs to be applied to images of this format
+func (f Format) RequiresDefaultQuality() bool {
+	return f == JPEG
+}
+
+// SupportsTransparency reports whether it supports transparency in any form.
+func (f Format) SupportsTransparency() bool {
+	return f != JPEG
+}
+
+// DefaultExtension returns the default file extension of this format, starting with a dot.
+// For example: .jpg for JPEG
+func (f Format) DefaultExtension() string {
+	return f.MediaType().FullSuffix()
+}
+
+// MediaType returns the media type of this image, e.g. image/jpeg for JPEG
+func (f Format) MediaType() media.Type {
+	switch f {
+	case JPEG:
+		return media.JPEGType
+	case PNG:
+		return media.PNGType
+	case GIF:
+		return media.GIFType
+	case TIFF:
+		return media.TIFFType
+	case BMP:
+		return media.BMPType
+	default:
+		panic(fmt.Sprintf("%d is not a valid image format", f))
+	}
+}
 
 type imageConfig struct {
 	config       image.Config
@@ -276,4 +315,16 @@ func ToFilters(in interface{}) []gift.Filter {
 	default:
 		panic(fmt.Sprintf("%T is not an image filter", in))
 	}
+}
+
+// IsOpaque returns false if the image has alpha channel and there is at least 1
+// pixel that is not (fully) opaque.
+func IsOpaque(img image.Image) bool {
+	if oim, ok := img.(interface {
+		Opaque() bool
+	}); ok {
+		return oim.Opaque()
+	}
+
+	return false
 }

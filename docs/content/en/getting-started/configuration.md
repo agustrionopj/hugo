@@ -50,19 +50,19 @@ In addition to using a single site config file, one can use the `configDir` dire
 
 
 ```
-config
-├── _default
-│   ├── config.toml
-│   ├── languages.toml
-│   ├── menus.en.toml
-│   ├── menus.zh.toml
-│   └── params.toml
-├── staging
-│   ├── config.toml
-│   └── params.toml
-└── production
-    ├── config.toml
-    └── params.toml
+├── config
+│   ├── _default
+│   │   ├── config.toml
+│   │   ├── languages.toml
+│   │   ├── menus.en.toml
+│   │   ├── menus.zh.toml
+│   │   └── params.toml
+│   ├── production
+│   │   ├── config.toml
+│   │   └── params.toml
+│   └── staging
+│       ├── config.toml
+│       └── params.toml
 ```
 
 Considering the structure above, when running `hugo --environment staging`, Hugo will use every settings from `config/_default` and merge `staging`'s on top of those.
@@ -82,10 +82,13 @@ assetDir ("assets")
 : The directory where Hugo finds asset files used in [Hugo Pipes](/hugo-pipes/). {{% module-mounts-note %}}
 
 baseURL
-: Hostname (and path) to the root, e.g. http://bep.is/
+: Hostname (and path) to the root, e.g. https://bep.is/
 
 blackfriday
-: See [Configure Blackfriday](/getting-started/configuration/#configure-blackfriday)
+: See [Configure Blackfriday](/getting-started/configuration-markup#blackfriday)
+
+build
+: See [Configure Build](#configure-build)
 
 buildDrafts (false)
 : Include drafts when building.
@@ -135,7 +138,7 @@ enableEmoji (false)
 enableGitInfo (false)
 : Enable `.GitInfo` object for each page (if the Hugo site is versioned by Git). This will then update the `Lastmod` parameter for each page using the last git commit date for that content file.
 
-enableInlineShortcodes
+enableInlineShortcodes (false)
 : Enable inline shortcode support. See [Inline Shortcodes](/templates/shortcode-templates/#inline-shortcodes).
 
 enableMissingTranslationPlaceholders (false)
@@ -167,7 +170,7 @@ languages
 : See [Configure Languages](/content-management/multilingual/#configure-languages).
 
 languageCode ("")
-: The site's language code.
+: The site's language code. It is used in the default [RSS template](/templates/rss/#configure-rss) and can be useful for [multi-lingual sites](/content-management/multilingual/#configure-multilingual-multihost).
 
 languageName ("")
 : The site's language name.
@@ -184,14 +187,17 @@ log (false)
 logFile ("")
 : Log File path (if set, logging enabled automatically).
 
+markup
+: See [Configure Markup](/getting-started/configuration-markup).{{< new-in "0.60.0" >}}
+
 menu
 : See [Add Non-content Entries to a Menu](/content-management/menus/#add-non-content-entries-to-a-menu).
 
-metaDataFormat ("toml")
-: Front matter meta-data format. Valid values: `"toml"`, `"yaml"`, or `"json"`.
+minify
+: See [Configure Minify](#configure-minify)
 
 module
-: Module config see [Module Config](/hugo-modules/configuration/).
+: Module config see [Module Config](/hugo-modules/configuration/).{{< new-in "0.56.0" >}}
 
 newContentEditor ("")
 : The editor to use when creating new content.
@@ -217,17 +223,8 @@ pluralizeListTitles (true)
 publishDir ("public")
 : The directory to where Hugo will write the final static site (the HTML files etc.).
 
-pygmentsCodeFencesGuessSyntax (false)
-: Enable syntax guessing for code fences without specified language.
-
-pygmentsStyle ("monokai")
-: Color-theme or style for syntax highlighting. See [Pygments Color Themes](https://help.farbox.com/pygments.html).
-
-pygmentsUseClasses (false)
-: Enable using external CSS for syntax highlighting.
-
 related
-: See [Related Content](/content-management/related/#configure-related-content).
+: See [Related Content](/content-management/related/#configure-related-content).{{< new-in "0.27" >}}
 
 relativeURLs (false)
 : Enable this to make all relative URLs relative to content root. Note that this does not affect absolute URLs.
@@ -297,6 +294,59 @@ enableemoji: true
 ```
 {{% /note %}}
 
+## Configure Build
+
+{{< new-in "0.66.0" >}}
+
+The `build` configuration section contains global build-realated configuration options.
+
+{{< code-toggle file="config">}}
+[build]
+useResourceCacheWhen="fallback"
+{{< /code-toggle >}}
+
+
+useResourceCacheWhen
+: When to use the cached resources in `/resources/_gen` for PostCSS and ToCSS. Valid values are `never`, `always` and `fallback`. The last value means that the cache will be tried if PostCSS/extended version is not available.
+
+## Configure Server
+
+{{< new-in "0.67.0" >}}
+
+This is only relevant when running `hugo server`, and it allows to set HTTP headers during development, which allows you to test out your Content Security Policy and similar. The configuration format matches [Netlify's](https://docs.netlify.com/routing/headers/#syntax-for-the-netlify-configuration-file) with slighly more powerful [Glob matching](https://github.com/gobwas/glob):
+
+
+{{< code-toggle file="config">}}
+[server]
+[[server.headers]]
+for = "/**.html"
+
+[server.headers.values]
+X-Frame-Options = "DENY"
+X-XSS-Protection = "1; mode=block"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Content-Security-Policy = "script-src localhost:1313"
+{{< /code-toggle >}}
+
+Since this is is "devlopment only", it may make sense to put it below the `development` environment:
+
+
+{{< code-toggle file="config/development/server">}}
+[[headers]]
+for = "/**.html"
+
+[headers.values]
+X-Frame-Options = "DENY"
+X-XSS-Protection = "1; mode=block"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Content-Security-Policy = "script-src localhost:1313"
+{{< /code-toggle >}}
+
+
+
+
 ## Configure Title Case
 
 Set `titleCaseStyle` to specify the title style used by the [title](/functions/title/) template function and the automatic section titles in Hugo. It defaults to [AP Stylebook](https://www.apstylebook.com/) for title casing, but you can also set it to `Chicago` or `Go` (every word starts with a capital letter).
@@ -351,15 +401,17 @@ This is really useful if you use a service such as Netlify to deploy your site. 
 
 {{% note "Setting Environment Variables" %}}
 Names must be prefixed with `HUGO_` and the configuration key must be set in uppercase when setting operating system environment variables.
+
+To set config params, prefix the name with `HUGO_PARAMS_`
 {{% /note %}}
 
 {{< todo >}}
 Test and document setting params via JSON env var.
 {{< /todo >}}
 
-## Ignore Files When Rendering
+## Ignore Content Files When Rendering
 
-The following statement inside `./config.toml` will cause Hugo to ignore files ending with `.foo` and `.boo` when rendering:
+The following statement inside `./config.toml` will cause Hugo to ignore content files ending with `.foo` and `.boo` when rendering:
 
 ```
 ignoreFiles = [ "\\.foo$", "\\.boo$" ]
@@ -428,32 +480,17 @@ The above will try first to extract the value for `.Date` from the filename, the
 `:git`
 : This is the Git author date for the last revision of this content file. This will only be set if `--enableGitInfo` is set or `enableGitInfo = true` is set in site config.
 
-## Configure Blackfriday
-
-[Blackfriday](https://github.com/russross/blackfriday) is Hugo's built-in Markdown rendering engine.
-
-Hugo typically configures Blackfriday with sane default values that should fit most use cases reasonably well.
-
-However, if you have specific needs with respect to Markdown, Hugo exposes some of its Blackfriday behavior options for you to alter. The following table lists these Hugo options, paired with the corresponding flags from Blackfriday's source code ( [html.go](https://github.com/russross/blackfriday/blob/master/html.go) and [markdown.go](https://github.com/russross/blackfriday/blob/master/markdown.go)).
-
-{{< readfile file="/content/en/readfiles/bfconfig.md" markdown="true" >}}
-
-{{% note %}}
-1. Blackfriday flags are *case sensitive* as of Hugo v0.15.
-2. Blackfriday flags must be grouped under the `blackfriday` key and can be set on both the site level *and* the page level. Any setting on a page will override its respective site setting.
-{{% /note %}}
-
-{{< code-toggle file="config" >}}
-[blackfriday]
-  angledQuotes = true
-  fractions = false
-  plainIDAnchors = true
-  extensions = ["hardLineBreak"]
-{{< /code-toggle >}}
-
 ## Configure Additional Output Formats
 
 Hugo v0.20 introduced the ability to render your content to multiple output formats (e.g., to JSON, AMP html, or CSV). See [Output Formats][] for information on how to add these values to your Hugo project's configuration file.
+
+## Configure Minify
+
+{{< new-in "0.68.0" >}}
+
+Default configuration:
+
+{{< code-toggle config="minify" />}}
 
 ## Configure File Caches
 

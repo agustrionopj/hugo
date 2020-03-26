@@ -18,11 +18,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/gohugoio/hugo/common/text"
 
 	"github.com/gohugoio/hugo/config"
 
@@ -31,9 +34,6 @@ import (
 	"github.com/gohugoio/hugo/common/hugio"
 	_errors "github.com/pkg/errors"
 	"github.com/spf13/afero"
-	"golang.org/x/text/runes"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
 )
 
 var (
@@ -134,6 +134,10 @@ func ishex(c rune) bool {
 // are also removed.
 // Spaces will be replaced with a single hyphen, and sequential hyphens will be reduced to one.
 func (p *PathSpec) UnicodeSanitize(s string) string {
+	if p.RemovePathAccents {
+		s = text.RemoveAccentsString(s)
+	}
+
 	source := []rune(s)
 	target := make([]rune, 0, len(source))
 	var prependHyphen bool
@@ -154,17 +158,7 @@ func (p *PathSpec) UnicodeSanitize(s string) string {
 		}
 	}
 
-	var result string
-
-	if p.RemovePathAccents {
-		// remove accents - see https://blog.golang.org/normalization
-		t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
-		result, _, _ = transform.String(t, string(target))
-	} else {
-		result = string(target)
-	}
-
-	return result
+	return string(target)
 }
 
 // ReplaceExtension takes a path and an extension, strips the old extension
@@ -250,11 +244,17 @@ func FileAndExtNoDelimiter(in string) (string, string) {
 	return file, strings.TrimPrefix(ext, ".")
 }
 
-// Filename takes a path, strips out the extension,
+// Filename takes a file path, strips out the extension,
 // and returns the name of the file.
 func Filename(in string) (name string) {
 	name, _ = fileAndExt(in, fpb)
 	return
+}
+
+// PathNoExt takes a path, strips out the extension,
+// and returns the name of the file.
+func PathNoExt(in string) string {
+	return strings.TrimSuffix(in, path.Ext(in))
 }
 
 // FileAndExt returns the filename and any extension of a file path as

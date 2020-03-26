@@ -94,10 +94,9 @@ func (m Type) Type() string {
 	// image/svg+xml
 	// text/css
 	if m.mimeSuffix != "" {
-		return fmt.Sprintf("%s/%s+%s", m.MainType, m.SubType, m.mimeSuffix)
+		return m.MainType + "/" + m.SubType + "+" + m.mimeSuffix
 	}
-	return fmt.Sprintf("%s/%s", m.MainType, m.SubType)
-
+	return m.MainType + "/" + m.SubType
 }
 
 func (m Type) String() string {
@@ -140,8 +139,19 @@ var (
 	YAMLType       = Type{MainType: "application", SubType: "yaml", Suffixes: []string{"yaml", "yml"}, Delimiter: defaultDelimiter}
 
 	// Common image types
-	PNGType = Type{MainType: "image", SubType: "png", Suffixes: []string{"png"}, Delimiter: defaultDelimiter}
-	JPGType = Type{MainType: "image", SubType: "jpg", Suffixes: []string{"jpg", "jpeg"}, Delimiter: defaultDelimiter}
+	PNGType  = Type{MainType: "image", SubType: "png", Suffixes: []string{"png"}, Delimiter: defaultDelimiter}
+	JPEGType = Type{MainType: "image", SubType: "jpeg", Suffixes: []string{"jpg", "jpeg"}, Delimiter: defaultDelimiter}
+	GIFType  = Type{MainType: "image", SubType: "gif", Suffixes: []string{"gif"}, Delimiter: defaultDelimiter}
+	TIFFType = Type{MainType: "image", SubType: "tiff", Suffixes: []string{"tif", "tiff"}, Delimiter: defaultDelimiter}
+	BMPType  = Type{MainType: "image", SubType: "bmp", Suffixes: []string{"bmp"}, Delimiter: defaultDelimiter}
+
+	// Common video types
+	AVIType  = Type{MainType: "video", SubType: "x-msvideo", Suffixes: []string{"avi"}, Delimiter: defaultDelimiter}
+	MPEGType = Type{MainType: "video", SubType: "mpeg", Suffixes: []string{"mpg", "mpeg"}, Delimiter: defaultDelimiter}
+	MP4Type  = Type{MainType: "video", SubType: "mp4", Suffixes: []string{"mp4"}, Delimiter: defaultDelimiter}
+	OGGType  = Type{MainType: "video", SubType: "ogg", Suffixes: []string{"ogv"}, Delimiter: defaultDelimiter}
+	WEBMType = Type{MainType: "video", SubType: "webm", Suffixes: []string{"webm"}, Delimiter: defaultDelimiter}
+	GPPType  = Type{MainType: "video", SubType: "3gpp", Suffixes: []string{"3gpp", "3gp"}, Delimiter: defaultDelimiter}
 
 	OctetType = Type{MainType: "application", SubType: "octet-stream"}
 )
@@ -164,7 +174,13 @@ var DefaultTypes = Types{
 	YAMLType,
 	TOMLType,
 	PNGType,
-	JPGType,
+	JPEGType,
+	AVIType,
+	MPEGType,
+	MP4Type,
+	OGGType,
+	WEBMType,
+	GPPType,
 }
 
 func init() {

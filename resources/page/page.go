@@ -23,8 +23,8 @@ import (
 
 	"github.com/gohugoio/hugo/common/hugo"
 	"github.com/gohugoio/hugo/common/maps"
-
 	"github.com/gohugoio/hugo/compare"
+	"github.com/gohugoio/hugo/hugofs/files"
 
 	"github.com/gohugoio/hugo/navigation"
 	"github.com/gohugoio/hugo/related"
@@ -63,6 +63,10 @@ type ChildCareProvider interface {
 	// kinds, even sections. If you want the old behaviour, you can
 	// use RegularPages.
 	RegularPages() Pages
+
+	// RegularPagesRecursive returns all regular pages below the current
+	// section.
+	RegularPagesRecursive() Pages
 
 	Resources() resource.Resources
 }
@@ -133,7 +137,7 @@ type PageMetaProvider interface {
 
 	// BundleType returns the bundle type: "leaf", "branch" or an empty string if it is none.
 	// See https://gohugo.io/content-management/page-bundles/
-	BundleType() string
+	BundleType() files.ContentClass
 
 	// A configured description.
 	Description() string
@@ -201,9 +205,10 @@ type PageMetaProvider interface {
 	Weight() int
 }
 
-// PageRenderProvider provides a way for a Page to render itself.
+// PageRenderProvider provides a way for a Page to render content.
 type PageRenderProvider interface {
-	Render(layout ...string) template.HTML
+	Render(layout ...string) (template.HTML, error)
+	RenderString(args ...interface{}) (template.HTML, error)
 }
 
 // PageWithoutContent is the Page without any of the content methods.
@@ -250,6 +255,10 @@ type PageWithoutContent interface {
 	compare.Eqer
 	maps.Scratcher
 	RelatedKeywordsProvider
+
+	// GetTerms gets the terms of a given taxonomy,
+	// e.g. GetTerms("categories")
+	GetTerms(taxonomy string) Pages
 
 	DeprecatedWarningPageMethods
 }

@@ -104,6 +104,7 @@ Your options for languages are `xml`/`html`, `go`/`golang`, `md`/`markdown`/`mkd
 ```
 ````
 
+
 ### Code Block Shortcode
 
 The Hugo documentation comes with a very robust shortcode for adding interactive code blocks.
@@ -324,7 +325,7 @@ Similar to [contributing to Hugo development](/contribute/development/), the Hug
 [abe]: https://en.wikipedia.org/wiki/Kobo_Abe
 [archetypes]: /content-management/archetypes/
 [bqsyntax]: https://github.com/adam-p/markdown-here/wiki/Markdown-Cheatsheet#blockquotes
-[charcount]: http://www.lettercount.com/
+[charcount]: https://www.lettercount.com/
 [`docs/static/images/showcase/`]: https://github.com/gohugoio/hugo/tree/master/docs/static/images/showcase/
 [ghforking]: https://help.github.com/articles/fork-a-repo/
 [hugodev]: /contribute/development/

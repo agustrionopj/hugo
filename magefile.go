@@ -134,7 +134,11 @@ func Check() {
 		return
 	}
 
-	mg.Deps(Test386)
+	if runtime.GOARCH == "amd64" && runtime.GOOS != "darwin" {
+		mg.Deps(Test386)
+	} else {
+		fmt.Printf("Skip Test386 on %s and/or %s\n", runtime.GOARCH, runtime.GOOS)
+	}
 
 	mg.Deps(Fmt, Vet)
 
@@ -155,19 +159,19 @@ func testGoFlags() string {
 // Note that we don't run with the extended tag. Currently not supported in 32 bit.
 func Test386() error {
 	env := map[string]string{"GOARCH": "386", "GOFLAGS": testGoFlags()}
-	return sh.RunWith(env, goexe, "test", "./...")
+	return runCmd(env, goexe, "test", "./...")
 }
 
 // Run tests
 func Test() error {
 	env := map[string]string{"GOFLAGS": testGoFlags()}
-	return sh.RunWith(env, goexe, "test", "./...", "-tags", buildTags())
+	return runCmd(env, goexe, "test", "./...", "-tags", buildTags())
 }
 
 // Run tests with race detector
 func TestRace() error {
 	env := map[string]string{"GOFLAGS": testGoFlags()}
-	return sh.RunWith(env, goexe, "test", "-race", "./...", "-tags", buildTags())
+	return runCmd(env, goexe, "test", "-race", "./...", "-tags", buildTags())
 }
 
 // Run gofmt linter
@@ -303,8 +307,20 @@ func TestCoverHTML() error {
 	return sh.Run(goexe, "tool", "cover", "-html="+coverAll)
 }
 
+func runCmd(env map[string]string, cmd string, args ...string) error {
+	if mg.Verbose() {
+		return sh.RunWith(env, cmd, args...)
+	}
+	output, err := sh.OutputWith(env, cmd, args...)
+	if err != nil {
+		fmt.Fprint(os.Stderr, output)
+	}
+
+	return err
+}
+
 func isGoLatest() bool {
-	return strings.Contains(runtime.Version(), "1.12")
+	return strings.Contains(runtime.Version(), "1.14")
 }
 
 func isCI() bool {

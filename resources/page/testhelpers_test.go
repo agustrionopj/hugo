@@ -19,6 +19,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/gohugoio/hugo/hugofs/files"
+
 	"github.com/gohugoio/hugo/modules"
 
 	"github.com/bep/gitmap"
@@ -133,7 +135,7 @@ func (p *testPage) BaseFileName() string {
 	panic("not implemented")
 }
 
-func (p *testPage) BundleType() string {
+func (p *testPage) BundleType() files.ContentClass {
 	panic("not implemented")
 }
 
@@ -217,6 +219,10 @@ func (p *testPage) GetPage(ref string) (Page, error) {
 }
 
 func (p *testPage) GetParam(key string) interface{} {
+	panic("not implemented")
+}
+
+func (p *testPage) GetTerms(taxonomy string) Pages {
 	panic("not implemented")
 }
 
@@ -310,6 +316,9 @@ func (p *testPage) Len() int {
 
 func (p *testPage) LinkTitle() string {
 	if p.linkTitle == "" {
+		if p.title == "" {
+			return p.path
+		}
 		return p.title
 	}
 	return p.linkTitle
@@ -355,6 +364,10 @@ func (p *testPage) RegularPages() Pages {
 	panic("not implemented")
 }
 
+func (p *testPage) RegularPagesRecursive() Pages {
+	panic("not implemented")
+}
+
 func (p *testPage) Paginate(seq interface{}, options ...interface{}) (*Pager, error) {
 	return nil, nil
 }
@@ -367,7 +380,7 @@ func (p *testPage) Param(key interface{}) (interface{}, error) {
 	return resource.Param(p, nil, key)
 }
 
-func (p *testPage) Params() map[string]interface{} {
+func (p *testPage) Params() maps.Params {
 	return p.params
 }
 
@@ -443,7 +456,11 @@ func (p *testPage) RelRefFrom(argsm map[string]interface{}, source interface{}) 
 	return "", nil
 }
 
-func (p *testPage) Render(layout ...string) template.HTML {
+func (p *testPage) Render(layout ...string) (template.HTML, error) {
+	panic("not implemented")
+}
+
+func (p *testPage) RenderString(args ...interface{}) (template.HTML, error) {
 	panic("not implemented")
 }
 

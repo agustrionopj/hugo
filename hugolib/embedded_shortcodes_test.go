@@ -27,7 +27,6 @@ import (
 	"github.com/gohugoio/hugo/deps"
 
 	qt "github.com/frankban/quicktest"
-	"github.com/gohugoio/hugo/tpl"
 )
 
 const (
@@ -212,17 +211,27 @@ func TestShortcodeVimeo(t *testing.T) {
 	}{
 		{
 			`{{< vimeo 146022717 >}}`,
-			"(?s)\n<div style=\".*?\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" style=\".*?\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>\n",
+			"(?s)\n<div style=\".*?\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" style=\".*?\" title=\"vimeo video\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>\n",
 		},
 		// set class
 		{
 			`{{< vimeo 146022717 video >}}`,
-			"(?s)\n<div class=\"video\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>\n",
+			"(?s)\n<div class=\"video\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" title=\"vimeo video\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>\n",
+		},
+		// set vimeo title
+		{
+			`{{< vimeo 146022717 video my-title >}}`,
+			"(?s)\n<div class=\"video\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" title=\"my-title\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>\n",
 		},
 		// set class (using named params)
 		{
 			`{{< vimeo id="146022717" class="video" >}}`,
-			"(?s)^<div class=\"video\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>",
+			"(?s)^<div class=\"video\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" title=\"vimeo video\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>",
+		},
+		// set vimeo title (using named params)
+		{
+			`{{< vimeo id="146022717" class="video" title="my vimeo video" >}}`,
+			"(?s)^<div class=\"video\">.*?<iframe src=\"https://player.vimeo.com/video/146022717\" title=\"my vimeo video\" webkitallowfullscreen mozallowfullscreen allowfullscreen>.*?</iframe>.*?</div>",
 		},
 	} {
 		var (
@@ -280,9 +289,25 @@ func TestShortcodeTweet(t *testing.T) {
 	t.Parallel()
 
 	for i, this := range []struct {
+		privacy            map[string]interface{}
 		in, resp, expected string
 	}{
 		{
+			map[string]interface{}{
+				"twitter": map[string]interface{}{
+					"simple": true,
+				},
+			},
+			`{{< tweet 666616452582129664 >}}`,
+			`{"url":"https:\/\/twitter.com\/spf13\/status\/666616452582129664","author_name":"Steve Francia","author_url":"https:\/\/twitter.com\/spf13","html":"\u003Cblockquote class=\"twitter-tweet\"\u003E\u003Cp lang=\"en\" dir=\"ltr\"\u003EHugo 0.15 will have 30%+ faster render times thanks to this commit \u003Ca href=\"https:\/\/t.co\/FfzhM8bNhT\"\u003Ehttps:\/\/t.co\/FfzhM8bNhT\u003C\/a\u003E  \u003Ca href=\"https:\/\/twitter.com\/hashtag\/gohugo?src=hash\"\u003E#gohugo\u003C\/a\u003E \u003Ca href=\"https:\/\/twitter.com\/hashtag\/golang?src=hash\"\u003E#golang\u003C\/a\u003E \u003Ca href=\"https:\/\/t.co\/ITbMNU2BUf\"\u003Ehttps:\/\/t.co\/ITbMNU2BUf\u003C\/a\u003E\u003C\/p\u003E&mdash; Steve Francia (@spf13) \u003Ca href=\"https:\/\/twitter.com\/spf13\/status\/666616452582129664\"\u003ENovember 17, 2015\u003C\/a\u003E\u003C\/blockquote\u003E\n\u003Cscript async src=\"\/\/platform.twitter.com\/widgets.js\" charset=\"utf-8\"\u003E\u003C\/script\u003E","width":550,"height":null,"type":"rich","cache_age":"3153600000","provider_name":"Twitter","provider_url":"https:\/\/twitter.com","version":"1.0"}`,
+			`.twitter-tweet a`,
+		},
+		{
+			map[string]interface{}{
+				"twitter": map[string]interface{}{
+					"simple": false,
+				},
+			},
 			`{{< tweet 666616452582129664 >}}`,
 			`{"url":"https:\/\/twitter.com\/spf13\/status\/666616452582129664","author_name":"Steve Francia","author_url":"https:\/\/twitter.com\/spf13","html":"\u003Cblockquote class=\"twitter-tweet\"\u003E\u003Cp lang=\"en\" dir=\"ltr\"\u003EHugo 0.15 will have 30%+ faster render times thanks to this commit \u003Ca href=\"https:\/\/t.co\/FfzhM8bNhT\"\u003Ehttps:\/\/t.co\/FfzhM8bNhT\u003C\/a\u003E  \u003Ca href=\"https:\/\/twitter.com\/hashtag\/gohugo?src=hash\"\u003E#gohugo\u003C\/a\u003E \u003Ca href=\"https:\/\/twitter.com\/hashtag\/golang?src=hash\"\u003E#golang\u003C\/a\u003E \u003Ca href=\"https:\/\/t.co\/ITbMNU2BUf\"\u003Ehttps:\/\/t.co\/ITbMNU2BUf\u003C\/a\u003E\u003C\/p\u003E&mdash; Steve Francia (@spf13) \u003Ca href=\"https:\/\/twitter.com\/spf13\/status\/666616452582129664\"\u003ENovember 17, 2015\u003C\/a\u003E\u003C\/blockquote\u003E\n\u003Cscript async src=\"\/\/platform.twitter.com\/widgets.js\" charset=\"utf-8\"\u003E\u003C\/script\u003E","width":550,"height":null,"type":"rich","cache_age":"3153600000","provider_name":"Twitter","provider_url":"https:\/\/twitter.com","version":"1.0"}`,
 			`(?s)^<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Hugo 0.15 will have 30%. faster render times thanks to this commit <a href="https://t.co/FfzhM8bNhT">https://t.co/FfzhM8bNhT</a>  <a href="https://twitter.com/hashtag/gohugo.src=hash">#gohugo</a> <a href="https://twitter.com/hashtag/golang.src=hash">#golang</a> <a href="https://t.co/ITbMNU2BUf">https://t.co/ITbMNU2BUf</a></p>&mdash; Steve Francia .@spf13. <a href="https://twitter.com/spf13/status/666616452582129664">November 17, 2015</a></blockquote>.*?<script async src="//platform.twitter.com/widgets.js" charset="utf-8"></script>`,
@@ -290,7 +315,7 @@ func TestShortcodeTweet(t *testing.T) {
 	} {
 		// overload getJSON to return mock API response from Twitter
 		tweetFuncMap := template.FuncMap{
-			"getJSON": func(urlParts ...string) interface{} {
+			"getJSON": func(urlParts ...interface{}) interface{} {
 				var v interface{}
 				err := json.Unmarshal([]byte(this.resp), &v)
 				if err != nil {
@@ -306,10 +331,7 @@ func TestShortcodeTweet(t *testing.T) {
 			th      = newTestHelper(cfg, fs, t)
 		)
 
-		withTemplate := func(templ tpl.TemplateHandler) error {
-			templ.(tpl.TemplateTestMocker).SetFuncs(tweetFuncMap)
-			return nil
-		}
+		cfg.Set("privacy", this.privacy)
 
 		writeSource(t, fs, filepath.Join("content", "simple.md"), fmt.Sprintf(`---
 title: Shorty
@@ -317,7 +339,7 @@ title: Shorty
 %s`, this.in))
 		writeSource(t, fs, filepath.Join("layouts", "_default", "single.html"), `{{ .Content }}`)
 
-		buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg, WithTemplate: withTemplate}, BuildCfg{})
+		buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg, OverloadedTemplateFuncs: tweetFuncMap}, BuildCfg{})
 
 		th.assertFileContentRegexp(filepath.Join("public", "simple", "index.html"), this.expected)
 
@@ -361,18 +383,13 @@ func TestShortcodeInstagram(t *testing.T) {
 			th      = newTestHelper(cfg, fs, t)
 		)
 
-		withTemplate := func(templ tpl.TemplateHandler) error {
-			templ.(tpl.TemplateTestMocker).SetFuncs(instagramFuncMap)
-			return nil
-		}
-
 		writeSource(t, fs, filepath.Join("content", "simple.md"), fmt.Sprintf(`---
 title: Shorty
 ---
 %s`, this.in))
 		writeSource(t, fs, filepath.Join("layouts", "_default", "single.html"), `{{ .Content | safeHTML }}`)
 
-		buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg, WithTemplate: withTemplate}, BuildCfg{})
+		buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg, OverloadedTemplateFuncs: instagramFuncMap}, BuildCfg{})
 
 		th.assertFileContentRegexp(filepath.Join("public", "simple", "index.html"), this.expected)
 

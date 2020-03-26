@@ -19,11 +19,11 @@ import (
 	"fmt"
 	"path/filepath"
 
-	_errors "github.com/pkg/errors"
-
+	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/resources"
 	"github.com/gohugoio/hugo/resources/resource"
+	_errors "github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/resources/resource_factories/bundler"
 	"github.com/gohugoio/hugo/resources/resource_factories/create"
@@ -45,15 +45,21 @@ func New(deps *deps.Deps) (*Namespace, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	minifyClient, err := minifier.New(deps.ResourceSpec)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Namespace{
 		deps:            deps,
 		scssClient:      scssClient,
 		createClient:    create.New(deps.ResourceSpec),
 		bundlerClient:   bundler.New(deps.ResourceSpec),
 		integrityClient: integrity.New(deps.ResourceSpec),
-		minifyClient:    minifier.New(deps.ResourceSpec),
+		minifyClient:    minifyClient,
 		postcssClient:   postcss.New(deps.ResourceSpec),
-		templatesClient: templates.New(deps.ResourceSpec, deps.TextTmpl),
+		templatesClient: templates.New(deps.ResourceSpec, deps),
 	}, nil
 }
 
@@ -298,10 +304,13 @@ func (ns *Namespace) resolveArgs(args []interface{}) (resources.ResourceTransfor
 
 	r, ok := args[1].(resources.ResourceTransformer)
 	if !ok {
+		if _, ok := args[1].(map[string]interface{}); !ok {
+			return nil, nil, fmt.Errorf("no Resource provided in transformation")
+		}
 		return nil, nil, fmt.Errorf("type %T not supported in Resource transformations", args[0])
 	}
 
-	m, err := cast.ToStringMapE(args[0])
+	m, err := maps.ToStringMapE(args[0])
 	if err != nil {
 		return nil, nil, _errors.Wrap(err, "invalid options type")
 	}

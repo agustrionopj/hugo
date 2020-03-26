@@ -21,16 +21,18 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/pkg/errors"
+
 	"github.com/gohugoio/hugo/resources/images/exif"
 	"github.com/spf13/afero"
 
 	bp "github.com/gohugoio/hugo/bufferpool"
 
-	"github.com/gohugoio/hugo/resources/internal"
-
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hugio"
+	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/helpers"
+	"github.com/gohugoio/hugo/resources/internal"
 	"github.com/gohugoio/hugo/resources/resource"
 
 	"github.com/gohugoio/hugo/media"
@@ -200,7 +202,7 @@ func (r *resourceAdapter) Name() string {
 	return r.target.Name()
 }
 
-func (r *resourceAdapter) Params() map[string]interface{} {
+func (r *resourceAdapter) Params() maps.Params {
 	r.init(false, false)
 	return r.target.Params()
 }
@@ -304,7 +306,7 @@ func (r *resourceAdapter) transform(publish, setContent bool) error {
 		key = key + "_" + tr.Key().Value()
 	}
 
-	base := ResourceCacheKey(r.target.TargetPath())
+	base := ResourceCacheKey(r.target.Key())
 
 	key = cache.cleanKey(base) + "_" + helpers.MD5String(key)
 
@@ -369,8 +371,9 @@ func (r *resourceAdapter) transform(publish, setContent bool) error {
 			tctx.InMediaType = tctx.OutMediaType
 		}
 
+		mayBeCachedOnDisk := transformationsToCacheOnDisk[tr.Key().Name]
 		if !writeToFileCache {
-			writeToFileCache = transformationsToCacheOnDisk[tr.Key().Name]
+			writeToFileCache = mayBeCachedOnDisk
 		}
 
 		if i > 0 {
@@ -390,29 +393,56 @@ func (r *resourceAdapter) transform(publish, setContent bool) error {
 			}
 		}
 
-		if err = tr.Transform(tctx); err != nil {
-			if writeToFileCache && err == herrors.ErrFeatureNotAvailable {
-				// This transformation is not available in this
-				// Hugo installation (scss not compiled in, PostCSS not available etc.)
-				// If a prepared bundle for this transformation chain is available, use that.
-				f := r.target.tryTransformedFileCache(key, updates)
-				if f == nil {
-					errMsg := err.Error()
-					if tr.Key().Name == "postcss" {
-						errMsg = "PostCSS not found; install with \"npm install postcss-cli\". See https://gohugo.io/hugo-pipes/postcss/"
-					}
-					return fmt.Errorf("%s: failed to transform %q (%s): %s", strings.ToUpper(tr.Key().Name), tctx.InPath, tctx.InMediaType.Type(), errMsg)
-				}
-				transformedContentr = f
-				updates.sourceFs = cache.fileCache.Fs
-				defer f.Close()
+		newErr := func(err error) error {
 
-				// The reader above is all we need.
-				break
+			msg := fmt.Sprintf("%s: failed to transform %q (%s)", strings.ToUpper(tr.Key().Name), tctx.InPath, tctx.InMediaType.Type())
+
+			if err == herrors.ErrFeatureNotAvailable {
+				var errMsg string
+				if tr.Key().Name == "postcss" {
+					// This transformation is not available in this
+					// Most likely because PostCSS is not installed.
+					errMsg = ". Check your PostCSS installation; install with \"npm install postcss-cli\". See https://gohugo.io/hugo-pipes/postcss/"
+				} else if tr.Key().Name == "tocss" {
+					errMsg = ". Check your Hugo installation; you need the extended version to build SCSS/SASS."
+				}
+
+				return errors.New(msg + errMsg)
 			}
 
-			// Abort.
-			return err
+			return errors.Wrap(err, msg)
+
+		}
+
+		var tryFileCache bool
+
+		if mayBeCachedOnDisk && r.spec.BuildConfig.UseResourceCache(nil) {
+			tryFileCache = true
+		} else {
+			err = tr.Transform(tctx)
+			if err != nil && err != herrors.ErrFeatureNotAvailable {
+				return newErr(err)
+			}
+
+			if mayBeCachedOnDisk {
+				tryFileCache = r.spec.BuildConfig.UseResourceCache(err)
+			}
+			if err != nil && !tryFileCache {
+				return newErr(err)
+			}
+		}
+
+		if tryFileCache {
+			f := r.target.tryTransformedFileCache(key, updates)
+			if f == nil {
+				return newErr(errors.Errorf("resource %q not found in file cache", key))
+			}
+			transformedContentr = f
+			updates.sourceFs = cache.fileCache.Fs
+			defer f.Close()
+
+			// The reader above is all we need.
+			break
 		}
 
 		if tctx.OutPath != "" {
@@ -508,7 +538,11 @@ func (r *resourceAdapter) initTransform(publish, setContent bool) {
 
 		r.transformationsErr = r.transform(publish, setContent)
 		if r.transformationsErr != nil {
-			r.spec.Logger.ERROR.Printf("Transformation failed: %s", r.transformationsErr)
+			if r.spec.ErrorSender != nil {
+				r.spec.ErrorSender.SendError(r.transformationsErr)
+			} else {
+				r.spec.Logger.ERROR.Printf("Transformation failed: %s", r.transformationsErr)
+			}
 		}
 	})
 
@@ -537,6 +571,7 @@ type transformableResource interface {
 
 	resource.ContentProvider
 	resource.Resource
+	resource.Identifier
 }
 
 type transformationUpdate struct {

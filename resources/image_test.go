@@ -15,12 +15,14 @@ package resources
 
 import (
 	"fmt"
+	"image"
+	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -131,6 +133,46 @@ func TestImageTransformBasic(t *testing.T) {
 	filledAgain, err := image.Fill("200x100 bottomLeft")
 	c.Assert(err, qt.IsNil)
 	c.Assert(filled, eq, filledAgain)
+}
+
+func TestImageTransformFormat(t *testing.T) {
+	c := qt.New(t)
+
+	image := fetchSunset(c)
+
+	fileCache := image.(specProvider).getSpec().FileCaches.ImageCache().Fs
+
+	assertExtWidthHeight := func(img resource.Image, ext string, w, h int) {
+		c.Helper()
+		c.Assert(img, qt.Not(qt.IsNil))
+		c.Assert(helpers.Ext(img.RelPermalink()), qt.Equals, ext)
+		c.Assert(img.Width(), qt.Equals, w)
+		c.Assert(img.Height(), qt.Equals, h)
+	}
+
+	c.Assert(image.RelPermalink(), qt.Equals, "/a/sunset.jpg")
+	c.Assert(image.ResourceType(), qt.Equals, "image")
+	assertExtWidthHeight(image, ".jpg", 900, 562)
+
+	imagePng, err := image.Resize("450x png")
+	c.Assert(err, qt.IsNil)
+	c.Assert(imagePng.RelPermalink(), qt.Equals, "/a/sunset_hu59e56ffff1bc1d8d122b1403d34e039f_90587_450x0_resize_linear.png")
+	c.Assert(imagePng.ResourceType(), qt.Equals, "image")
+	assertExtWidthHeight(imagePng, ".png", 450, 281)
+	c.Assert(imagePng.Name(), qt.Equals, "sunset.jpg")
+	c.Assert(imagePng.MediaType().String(), qt.Equals, "image/png")
+
+	assertFileCache(c, fileCache, path.Base(imagePng.RelPermalink()), 450, 281)
+
+	imageGif, err := image.Resize("225x gif")
+	c.Assert(err, qt.IsNil)
+	c.Assert(imageGif.RelPermalink(), qt.Equals, "/a/sunset_hu59e56ffff1bc1d8d122b1403d34e039f_90587_225x0_resize_linear.gif")
+	c.Assert(imageGif.ResourceType(), qt.Equals, "image")
+	assertExtWidthHeight(imageGif, ".gif", 225, 141)
+	c.Assert(imageGif.Name(), qt.Equals, "sunset.jpg")
+	c.Assert(imageGif.MediaType().String(), qt.Equals, "image/gif")
+
+	assertFileCache(c, fileCache, path.Base(imageGif.RelPermalink()), 225, 141)
 }
 
 // https://github.com/gohugoio/hugo/issues/4261
@@ -437,6 +479,47 @@ func BenchmarkImageExif(b *testing.B) {
 
 }
 
+// usesFMA indicates whether "fused multiply and add" (FMA) instruction is
+// used.  The command "grep FMADD go/test/codegen/floats.go" can help keep
+// the FMA-using architecture list updated.
+var usesFMA = runtime.GOARCH == "s390x" ||
+	runtime.GOARCH == "ppc64" ||
+	runtime.GOARCH == "ppc64le" ||
+	runtime.GOARCH == "arm64"
+
+// goldenEqual compares two NRGBA images.  It is used in golden tests only.
+// A small tolerance is allowed on architectures using "fused multiply and add"
+// (FMA) instruction to accommodate for floating-point rounding differences
+// with control golden images that were generated on amd64 architecture.
+// See https://golang.org/ref/spec#Floating_point_operators
+// and https://github.com/gohugoio/hugo/issues/6387 for more information.
+//
+// Borrowed from https://github.com/disintegration/gift/blob/a999ff8d5226e5ab14b64a94fca07c4ac3f357cf/gift_test.go#L598-L625
+// Copyright (c) 2014-2019 Grigory Dryapak
+// Licensed under the MIT License.
+func goldenEqual(img1, img2 *image.NRGBA) bool {
+	maxDiff := 0
+	if usesFMA {
+		maxDiff = 1
+	}
+	if !img1.Rect.Eq(img2.Rect) {
+		return false
+	}
+	if len(img1.Pix) != len(img2.Pix) {
+		return false
+	}
+	for i := 0; i < len(img1.Pix); i++ {
+		diff := int(img1.Pix[i]) - int(img2.Pix[i])
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff > maxDiff {
+			return false
+		}
+	}
+	return true
+}
+
 func TestImageOperationsGolden(t *testing.T) {
 	c := qt.New(t)
 	c.Parallel()
@@ -454,6 +537,18 @@ func TestImageOperationsGolden(t *testing.T) {
 
 	if devMode {
 		fmt.Println(workDir)
+	}
+
+	// Test PNGs with alpha channel.
+	for _, img := range []string{"gopher-hero8.png", "gradient-circle.png"} {
+		orig := fetchImageForSpec(spec, c, img)
+		for _, resizeSpec := range []string{"200x #e3e615", "200x jpg #e3e615"} {
+			resized, err := orig.Resize(resizeSpec)
+			c.Assert(err, qt.IsNil)
+			rel := resized.RelPermalink()
+			c.Log("resize", rel)
+			c.Assert(rel, qt.Not(qt.Equals), "")
+		}
 	}
 
 	for _, img := range testImages {
@@ -503,6 +598,7 @@ func TestImageOperationsGolden(t *testing.T) {
 		}
 
 		resized, err := orig.Fill("400x200 center")
+		c.Assert(err, qt.IsNil)
 
 		for _, filter := range filters {
 			resized, err := resized.Filter(filter)
@@ -527,39 +623,61 @@ func TestImageOperationsGolden(t *testing.T) {
 	dir2 := filepath.FromSlash("testdata/golden")
 
 	// The two dirs above should now be the same.
-	d1, err := os.Open(dir1)
+	dirinfos1, err := ioutil.ReadDir(dir1)
 	c.Assert(err, qt.IsNil)
-	d2, err := os.Open(dir2)
-	c.Assert(err, qt.IsNil)
-
-	dirinfos1, err := d1.Readdir(-1)
-	c.Assert(err, qt.IsNil)
-	dirinfos2, err := d2.Readdir(-1)
-
+	dirinfos2, err := ioutil.ReadDir(dir2)
 	c.Assert(err, qt.IsNil)
 	c.Assert(len(dirinfos1), qt.Equals, len(dirinfos2))
 
 	for i, fi1 := range dirinfos1 {
-		if regexp.MustCompile("gauss").MatchString(fi1.Name()) {
-			continue
-		}
 		fi2 := dirinfos2[i]
 		c.Assert(fi1.Name(), qt.Equals, fi2.Name())
-		c.Assert(fi1, eq, fi2)
+
 		f1, err := os.Open(filepath.Join(dir1, fi1.Name()))
 		c.Assert(err, qt.IsNil)
 		f2, err := os.Open(filepath.Join(dir2, fi2.Name()))
 		c.Assert(err, qt.IsNil)
 
-		hash1, err := helpers.MD5FromReader(f1)
+		img1, _, err := image.Decode(f1)
 		c.Assert(err, qt.IsNil)
-		hash2, err := helpers.MD5FromReader(f2)
+		img2, _, err := image.Decode(f2)
 		c.Assert(err, qt.IsNil)
+
+		nrgba1 := image.NewNRGBA(img1.Bounds())
+		gift.New().Draw(nrgba1, img1)
+		nrgba2 := image.NewNRGBA(img2.Bounds())
+		gift.New().Draw(nrgba2, img2)
+
+		if !goldenEqual(nrgba1, nrgba2) {
+			switch fi1.Name() {
+			case "gohugoio8_hu7f72c00afdf7634587afaa5eff2a25b2_73538_4c320010919da2d8b63ed24818b4d8e1.png",
+				"gohugoio8_hu7f72c00afdf7634587afaa5eff2a25b2_73538_9d4c2220235b3c2d9fa6506be571560f.png",
+				"gohugoio8_hu7f72c00afdf7634587afaa5eff2a25b2_73538_c74bb417b961e09cf1aac2130b7b9b85.png",
+				"gohugoio8_hu7f72c00afdf7634587afaa5eff2a25b2_73538_300x200_fill_gaussian_smart1_2.png":
+				c.Log("expectedly differs from golden due to dithering:", fi1.Name())
+			default:
+				t.Errorf("resulting image differs from golden: %s", fi1.Name())
+			}
+		}
+
+		if !usesFMA {
+			c.Assert(fi1, eq, fi2)
+
+			_, err = f1.Seek(0, 0)
+			c.Assert(err, qt.IsNil)
+			_, err = f2.Seek(0, 0)
+			c.Assert(err, qt.IsNil)
+
+			hash1, err := helpers.MD5FromReader(f1)
+			c.Assert(err, qt.IsNil)
+			hash2, err := helpers.MD5FromReader(f2)
+			c.Assert(err, qt.IsNil)
+
+			c.Assert(hash1, qt.Equals, hash2)
+		}
 
 		f1.Close()
 		f2.Close()
-
-		c.Assert(hash1, qt.Equals, hash2)
 	}
 
 }

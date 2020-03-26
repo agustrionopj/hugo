@@ -16,6 +16,7 @@ package commands
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -33,7 +34,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/livereload"
-	"github.com/gohugoio/hugo/tpl"
 
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/helpers"
@@ -287,7 +287,7 @@ func getRootWatchDirsStr(baseDir string, watchDirs []string) string {
 type fileServer struct {
 	baseURLs      []string
 	roots         []string
-	errorTemplate tpl.Template
+	errorTemplate func(err interface{}) (io.Reader, error)
 	c             *commandeer
 	s             *serverCmd
 }
@@ -334,17 +334,18 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, string, string, erro
 				// First check the error state
 				err := f.c.getErrorWithContext()
 				if err != nil {
+					f.c.wasError = true
 					w.WriteHeader(500)
-					var b bytes.Buffer
-					err := f.errorTemplate.Execute(&b, err)
+					r, err := f.errorTemplate(err)
 					if err != nil {
 						f.c.logger.ERROR.Println(err)
 					}
+
 					port = 1313
 					if !f.c.paused {
 						port = f.c.Cfg.GetInt("liveReloadPort")
 					}
-					fmt.Fprint(w, injectLiveReloadScript(&b, port))
+					fmt.Fprint(w, injectLiveReloadScript(r, port))
 
 					return
 				}
@@ -353,6 +354,10 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, string, string, erro
 			if f.s.noHTTPCache {
 				w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
 				w.Header().Set("Pragma", "no-cache")
+			}
+
+			for _, header := range f.c.serverConfig.Match(r.RequestURI) {
+				w.Header().Set(header.Key, header.Value)
 			}
 
 			if f.c.fastRenderMode && f.c.buildErr == nil {
@@ -416,17 +421,21 @@ func (c *commandeer) serve(s *serverCmd) error {
 		roots = []string{""}
 	}
 
-	templ, err := c.hugo().TextTmpl.Parse("__default_server_error", buildErrorTemplate)
+	templ, err := c.hugo().TextTmpl().Parse("__default_server_error", buildErrorTemplate)
 	if err != nil {
 		return err
 	}
 
 	srv := &fileServer{
-		baseURLs:      baseURLs,
-		roots:         roots,
-		c:             c,
-		s:             s,
-		errorTemplate: templ,
+		baseURLs: baseURLs,
+		roots:    roots,
+		c:        c,
+		s:        s,
+		errorTemplate: func(ctx interface{}) (io.Reader, error) {
+			b := &bytes.Buffer{}
+			err := c.hugo().Tmpl().Execute(templ, b, ctx)
+			return b, err
+		},
 	}
 
 	doLiveReload := !c.Cfg.GetBool("disableLiveReload")

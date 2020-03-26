@@ -19,10 +19,7 @@ import (
 	"fmt"
 	"runtime/trace"
 
-	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/output"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/semaphore"
 
 	"github.com/pkg/errors"
 
@@ -66,12 +63,14 @@ func (h *HugoSites) Build(config BuildCfg, events ...fsnotify.Event) error {
 		h.Metrics.Reset()
 	}
 
+	h.testCounters = config.testCounters
+
 	// Need a pointer as this may be modified.
 	conf := &config
 
 	if conf.whatChanged == nil {
 		// Assume everything has changed
-		conf.whatChanged = &whatChanged{source: true, other: true}
+		conf.whatChanged = &whatChanged{source: true}
 	}
 
 	var prepareErr error
@@ -244,41 +243,7 @@ func (h *HugoSites) assemble(bcfg *BuildCfg) error {
 		return nil
 	}
 
-	numWorkers := config.GetNumWorkerMultiplier()
-	sem := semaphore.NewWeighted(int64(numWorkers))
-	g, ctx := errgroup.WithContext(context.Background())
-
-	for _, s := range h.Sites {
-		s := s
-		g.Go(func() error {
-			err := sem.Acquire(ctx, 1)
-			if err != nil {
-				return err
-			}
-			defer sem.Release(1)
-
-			if err := s.assemblePagesMap(s); err != nil {
-				return err
-			}
-
-			if err := s.pagesMap.assemblePageMeta(); err != nil {
-				return err
-			}
-
-			if err := s.pagesMap.assembleTaxonomies(s); err != nil {
-				return err
-			}
-
-			if err := s.createWorkAllPages(); err != nil {
-				return err
-			}
-
-			return nil
-
-		})
-	}
-
-	if err := g.Wait(); err != nil {
+	if err := h.content.AssemblePages(); err != nil {
 		return err
 	}
 
@@ -291,12 +256,20 @@ func (h *HugoSites) assemble(bcfg *BuildCfg) error {
 }
 
 func (h *HugoSites) render(config *BuildCfg) error {
+	if _, err := h.init.layouts.Do(); err != nil {
+		return err
+	}
+
 	siteRenderContext := &siteRenderContext{cfg: config, multihost: h.multihost}
 
 	if !config.PartialReRender {
 		h.renderFormats = output.Formats{}
-		for _, s := range h.Sites {
+		h.withSite(func(s *Site) error {
 			s.initRenderFormats()
+			return nil
+		})
+
+		for _, s := range h.Sites {
 			h.renderFormats = append(h.renderFormats, s.renderFormats...)
 		}
 	}
@@ -312,11 +285,6 @@ func (h *HugoSites) render(config *BuildCfg) error {
 			case <-h.Done():
 				return nil
 			default:
-				// For the non-renderable pages, we use the content iself as
-				// template and we may have to re-parse and execute it for
-				// each output format.
-				h.TemplateHandler().RebuildClone()
-
 				for _, s2 := range h.Sites {
 					// We render site by site, but since the content is lazily rendered
 					// and a site can "borrow" content from other sites, every site

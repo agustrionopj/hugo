@@ -18,7 +18,9 @@ package page
 import (
 	"encoding/json"
 	"github.com/bep/gitmap"
+	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/config"
+	"github.com/gohugoio/hugo/hugofs/files"
 	"github.com/gohugoio/hugo/langs"
 	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/navigation"
@@ -104,14 +106,14 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 		RelPermalink             string
 		Name                     string
 		Title                    string
-		Params                   map[string]interface{}
+		Params                   maps.Params
 		Data                     interface{}
 		Date                     time.Time
 		Lastmod                  time.Time
 		PublishDate              time.Time
 		ExpiryDate               time.Time
 		Aliases                  []string
-		BundleType               string
+		BundleType               files.ContentClass
 		Description              string
 		Draft                    bool
 		IsHome                   bool

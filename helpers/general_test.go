@@ -19,11 +19,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/viper"
+
+	"github.com/gohugoio/hugo/common/loggers"
+
 	qt "github.com/frankban/quicktest"
 	"github.com/spf13/afero"
 )
 
-func TestGuessType(t *testing.T) {
+func TestResolveMarkup(t *testing.T) {
+	c := qt.New(t)
+	cfg := viper.New()
+	spec, err := NewContentSpec(cfg, loggers.NewErrorLogger(), afero.NewMemMapFs())
+	c.Assert(err, qt.IsNil)
+
 	for i, this := range []struct {
 		in     string
 		expect string
@@ -43,7 +52,7 @@ func TestGuessType(t *testing.T) {
 		{"org", "org"},
 		{"excel", ""},
 	} {
-		result := GuessType(this.in)
+		result := spec.ResolveMarkup(this.in)
 		if result != this.expect {
 			t.Errorf("[%d] got %s but expected %s", i, result, this.expect)
 		}
@@ -398,4 +407,11 @@ func BenchmarkUniqueStrings(b *testing.B) {
 		}
 	})
 
+}
+
+func TestHashString(t *testing.T) {
+	c := qt.New(t)
+
+	c.Assert(HashString("a", "b"), qt.Equals, "2712570657419664240")
+	c.Assert(HashString("ab"), qt.Equals, "590647783936702392")
 }

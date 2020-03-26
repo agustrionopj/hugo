@@ -9,6 +9,7 @@ import (
 	"time"
 
 	qt "github.com/frankban/quicktest"
+	"github.com/gohugoio/hugo/htesting"
 	"github.com/gohugoio/hugo/resources/page"
 
 	"github.com/fortytw2/leaktest"
@@ -276,8 +277,8 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 	c.Assert(len(doc4.Translations()), qt.Equals, 0)
 
 	// Taxonomies and their URLs
-	c.Assert(len(enSite.Taxonomies), qt.Equals, 1)
-	tags := enSite.Taxonomies["tags"]
+	c.Assert(len(enSite.Taxonomies()), qt.Equals, 1)
+	tags := enSite.Taxonomies()["tags"]
 	c.Assert(len(tags), qt.Equals, 2)
 	c.Assert(doc1en, qt.Equals, tags["tag1"][0].Page)
 
@@ -357,8 +358,8 @@ func doTestMultiSitesBuild(t *testing.T, configTemplate, configSuffix string) {
 	b.AssertFileContent("public/fr/sitemap.xml", "http://example.com/blog/fr/sect/doc1/")
 
 	// Check taxonomies
-	enTags := enSite.Taxonomies["tags"]
-	frTags := frSite.Taxonomies["plaques"]
+	enTags := enSite.Taxonomies()["tags"]
+	frTags := frSite.Taxonomies()["plaques"]
 	c.Assert(len(enTags), qt.Equals, 2, qt.Commentf("Tags in en: %v", enTags))
 	c.Assert(len(frTags), qt.Equals, 2, qt.Commentf("Tags in fr: %v", frTags))
 	c.Assert(enTags["tag1"], qt.Not(qt.IsNil))
@@ -691,13 +692,13 @@ END
 		checkContent(b, fmt.Sprintf("public/%s/page%d/index.json", section, i), contentMatchers...)
 	}
 
-	checkContent(b, "public/s1/index.html", "P: s1/_index.md\nList: 10|List Content: 8335\n\n\nL1: 500 L2: 5\n\nRender 0: View: 8335\n\nRender 1: View: 8335\n\nRender 2: View: 8335\n\nRender 3: View: 8335\n\nRender 4: View: 8335\n\nEND\n")
-	checkContent(b, "public/s2/index.html", "P: s2/_index.md\nList: 10|List Content: 8335", "Render 4: View: 8335\n\nEND")
-	checkContent(b, "public/index.html", "P: _index.md\nList: 10|List Content: 8335", "4: View: 8335\n\nEND")
+	checkContent(b, "public/s1/index.html", "P: s1/_index.md\nList: 10|List Content: 8132\n\n\nL1: 500 L2: 5\n\nRender 0: View: 8132\n\nRender 1: View: 8132\n\nRender 2: View: 8132\n\nRender 3: View: 8132\n\nRender 4: View: 8132\n\nEND\n")
+	checkContent(b, "public/s2/index.html", "P: s2/_index.md\nList: 10|List Content: 8132", "Render 4: View: 8132\n\nEND")
+	checkContent(b, "public/index.html", "P: _index.md\nList: 10|List Content: 8132", "4: View: 8132\n\nEND")
 
 	// Check paginated pages
 	for i := 2; i <= 9; i++ {
-		checkContent(b, fmt.Sprintf("public/page/%d/index.html", i), fmt.Sprintf("Page: %d", i), "Content: 8335\n\n\nL1: 500 L2: 5\n\nRender 0: View: 8335", "Render 4: View: 8335\n\nEND")
+		checkContent(b, fmt.Sprintf("public/page/%d/index.html", i), fmt.Sprintf("Page: %d", i), "Content: 8132\n\n\nL1: 500 L2: 5\n\nRender 0: View: 8132", "Render 4: View: 8132\n\nEND")
 	}
 }
 
@@ -706,7 +707,7 @@ func checkContent(s *sitesBuilder, filename string, matches ...string) {
 	content := readDestination(s.T, s.Fs, filename)
 	for _, match := range matches {
 		if !strings.Contains(content, match) {
-			s.Fatalf("No match for %q in content for %s\n%q", match, filename, content)
+			s.Fatalf("No match for\n%q\nin content for %s\n%q\nDiff:\n%s", match, filename, content, htesting.DiffStrings(content, match))
 		}
 	}
 }
@@ -977,7 +978,10 @@ enableRobotsTXT = true
 [permalinks]
 other = "/somewhere/else/:filename"
 
-[blackfriday]
+# TODO(bep)
+[markup]
+  defaultMarkdownHandler = "blackfriday"
+[markup.blackfriday]
 angledQuotes = true
 
 [Taxonomies]
@@ -1035,7 +1039,10 @@ enableRobotsTXT: true
 permalinks:
     other: "/somewhere/else/:filename"
 
-blackfriday:
+# TODO(bep)
+markup:
+  defaultMarkdownHandler: blackfriday
+  blackFriday:
     angledQuotes: true
 
 Taxonomies:
@@ -1093,9 +1100,12 @@ var multiSiteJSONConfigTemplate = `
   "permalinks": {
     "other": "/somewhere/else/:filename"
   },
-  "blackfriday": {
-    "angledQuotes": true
-  },
+  "markup": {
+		"defaultMarkdownHandler": "blackfriday",
+		"blackfriday": {
+	    "angledQuotes": true
+	  }
+   },
   "Taxonomies": {
     "tag": "tags"
   },
@@ -1436,5 +1446,33 @@ weight: 2002
 PNG Data
 `)
 
+	i18nContent := func(id, value string) string {
+		return fmt.Sprintf(`
+[%s]
+other = %q
+`, id, value)
+	}
+
+	b.WithSourceFile("i18n/en.toml", i18nContent("hello", "Hello"))
+	b.WithSourceFile("i18n/fr.toml", i18nContent("hello", "Bonjour"))
+	b.WithSourceFile("i18n/nb.toml", i18nContent("hello", "Hallo"))
+	b.WithSourceFile("i18n/nn.toml", i18nContent("hello", "Hallo"))
+
 	return &multiSiteTestBuilder{sitesBuilder: b, configFormat: configFormat, config: config, configData: configData}
+}
+
+func TestRebuildOnAssetChange(t *testing.T) {
+	b := newTestSitesBuilder(t).Running()
+	b.WithTemplatesAdded("index.html", `
+{{ (resources.Get "data.json").Content }}
+`)
+	b.WithSourceFile("assets/data.json", "orig data")
+
+	b.Build(BuildCfg{})
+	b.AssertFileContent("public/index.html", `orig data`)
+
+	b.EditFiles("assets/data.json", "changed data")
+
+	b.Build(BuildCfg{})
+	b.AssertFileContent("public/index.html", `changed data`)
 }

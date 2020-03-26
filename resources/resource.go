@@ -22,6 +22,10 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/gohugoio/hugo/resources/internal"
+
+	"github.com/gohugoio/hugo/common/herrors"
+
 	"github.com/gohugoio/hugo/hugofs"
 
 	"github.com/gohugoio/hugo/media"
@@ -30,9 +34,9 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/common/hugio"
+	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/resources/page"
 	"github.com/gohugoio/hugo/resources/resource"
-
 	"github.com/spf13/afero"
 
 	"github.com/gohugoio/hugo/helpers"
@@ -93,6 +97,24 @@ type ResourceTransformer interface {
 
 type Transformer interface {
 	Transform(...ResourceTransformation) (ResourceTransformer, error)
+}
+
+func NewFeatureNotAvailableTransformer(key string, elements ...interface{}) ResourceTransformation {
+	return transformerNotAvailable{
+		key: internal.NewResourceTransformationKey(key, elements...),
+	}
+}
+
+type transformerNotAvailable struct {
+	key internal.ResourceTransformationKey
+}
+
+func (t transformerNotAvailable) Transform(ctx *ResourceTransformationCtx) error {
+	return herrors.ErrFeatureNotAvailable
+}
+
+func (t transformerNotAvailable) Key() internal.ResourceTransformationKey {
+	return t.key
 }
 
 type baseResourceResource interface {
@@ -220,11 +242,15 @@ func (l *genericResource) MediaType() media.Type {
 	return l.mediaType
 }
 
+func (l *genericResource) setMediaType(mediaType media.Type) {
+	l.mediaType = mediaType
+}
+
 func (l *genericResource) Name() string {
 	return l.name
 }
 
-func (l *genericResource) Params() map[string]interface{} {
+func (l *genericResource) Params() maps.Params {
 	return l.params
 }
 

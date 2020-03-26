@@ -15,7 +15,6 @@ package hugolib
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -23,8 +22,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/markbates/inflect"
-
-	"github.com/gohugoio/hugo/helpers"
 
 	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/deps"
@@ -231,12 +228,12 @@ THE END.`, refShortcode),
 		// Issue #1753: Should not add a trailing newline after shortcode.
 		{
 			filepath.FromSlash("sect/doc3.md"),
-			fmt.Sprintf(`**Ref 1:**{{< %s "sect/doc3.md" >}}.`, refShortcode),
+			fmt.Sprintf(`**Ref 1:** {{< %s "sect/doc3.md" >}}.`, refShortcode),
 		},
 		// Issue #3703
 		{
 			filepath.FromSlash("sect/doc4.md"),
-			fmt.Sprintf(`**Ref 1:**{{< %s "%s" >}}.`, refShortcode, doc3Slashed),
+			fmt.Sprintf(`**Ref 1:** {{< %s "%s" >}}.`, refShortcode, doc3Slashed),
 		},
 	}
 
@@ -267,9 +264,9 @@ THE END.`, refShortcode),
 		expected string
 	}{
 		{filepath.FromSlash(fmt.Sprintf("public/sect/doc1%s", expectedPathSuffix)), fmt.Sprintf("<p>Ref 2: %s/sect/doc2%s</p>\n", expectedBase, expectedURLSuffix)},
-		{filepath.FromSlash(fmt.Sprintf("public/sect/doc2%s", expectedPathSuffix)), fmt.Sprintf("<p><strong>Ref 1:</strong></p>\n\n%s/sect/doc1%s\n\n<p>THE END.</p>\n", expectedBase, expectedURLSuffix)},
-		{filepath.FromSlash(fmt.Sprintf("public/sect/doc3%s", expectedPathSuffix)), fmt.Sprintf("<p><strong>Ref 1:</strong>%s/sect/doc3%s.</p>\n", expectedBase, expectedURLSuffix)},
-		{filepath.FromSlash(fmt.Sprintf("public/sect/doc4%s", expectedPathSuffix)), fmt.Sprintf("<p><strong>Ref 1:</strong>%s/sect/doc3%s.</p>\n", expectedBase, expectedURLSuffix)},
+		{filepath.FromSlash(fmt.Sprintf("public/sect/doc2%s", expectedPathSuffix)), fmt.Sprintf("<p><strong>Ref 1:</strong></p>\n%s/sect/doc1%s\n<p>THE END.</p>\n", expectedBase, expectedURLSuffix)},
+		{filepath.FromSlash(fmt.Sprintf("public/sect/doc3%s", expectedPathSuffix)), fmt.Sprintf("<p><strong>Ref 1:</strong> %s/sect/doc3%s.</p>\n", expectedBase, expectedURLSuffix)},
+		{filepath.FromSlash(fmt.Sprintf("public/sect/doc4%s", expectedPathSuffix)), fmt.Sprintf("<p><strong>Ref 1:</strong> %s/sect/doc3%s.</p>\n", expectedBase, expectedURLSuffix)},
 	}
 
 	for _, test := range tests {
@@ -330,12 +327,12 @@ func doTestShouldAlwaysHaveUglyURLs(t *testing.T, uglyURLs bool) {
 		expected string
 	}{
 		{filepath.FromSlash("public/index.html"), "Home Sweet Home."},
-		{filepath.FromSlash(expectedPagePath), "\n\n<h1 id=\"title\">title</h1>\n\n<p>some <em>content</em></p>\n"},
+		{filepath.FromSlash(expectedPagePath), "<h1 id=\"title\">title</h1>\n<p>some <em>content</em></p>\n"},
 		{filepath.FromSlash("public/404.html"), "Page Not Found."},
 		{filepath.FromSlash("public/index.xml"), "<root>RSS</root>"},
 		{filepath.FromSlash("public/sitemap.xml"), "<root>SITEMAP</root>"},
 		// Issue #1923
-		{filepath.FromSlash("public/ugly.html"), "\n\n<h1 id=\"title\">title</h1>\n\n<p>doc2 <em>content</em></p>\n"},
+		{filepath.FromSlash("public/ugly.html"), "<h1 id=\"title\">title</h1>\n<p>doc2 <em>content</em></p>\n"},
 	}
 
 	for _, p := range s.RegularPages() {
@@ -500,70 +497,6 @@ func doTestSectionNaming(t *testing.T, canonify, uglify, pluralize bool) {
 		th.assertFileContent(filepath.Join("public", test.doc), test.expected)
 	}
 
-}
-
-func TestSkipRender(t *testing.T) {
-	t.Parallel()
-	sources := [][2]string{
-		{filepath.FromSlash("sect/doc1.html"), "---\nmarkup: markdown\n---\n# title\nsome *content*"},
-		{filepath.FromSlash("sect/doc2.html"), "<!doctype html><html><body>more content</body></html>"},
-		{filepath.FromSlash("sect/doc3.md"), "# doc3\n*some* content"},
-		{filepath.FromSlash("sect/doc4.md"), "---\ntitle: doc4\n---\n# doc4\n*some content*"},
-		{filepath.FromSlash("sect/doc5.html"), "<!doctype html><html>{{ template \"head\" }}<body>body5</body></html>"},
-		{filepath.FromSlash("sect/doc6.html"), "<!doctype html><html>{{ template \"head_abs\" }}<body>body5</body></html>"},
-		{filepath.FromSlash("doc7.html"), "<html><body>doc7 content</body></html>"},
-		{filepath.FromSlash("sect/doc8.html"), "---\nmarkup: md\n---\n# title\nsome *content*"},
-		// Issue #3021
-		{filepath.FromSlash("doc9.html"), "<html><body>doc9: {{< myshortcode >}}</body></html>"},
-	}
-
-	cfg, fs := newTestCfg()
-
-	cfg.Set("verbose", true)
-	cfg.Set("canonifyURLs", true)
-	cfg.Set("uglyURLs", true)
-	cfg.Set("baseURL", "http://auth/bub")
-
-	for _, src := range sources {
-		writeSource(t, fs, filepath.Join("content", src[0]), src[1])
-
-	}
-
-	writeSource(t, fs, filepath.Join("layouts", "_default/single.html"), "{{.Content}}")
-	writeSource(t, fs, filepath.Join("layouts", "head"), "<head><script src=\"script.js\"></script></head>")
-	writeSource(t, fs, filepath.Join("layouts", "head_abs"), "<head><script src=\"/script.js\"></script></head>")
-	writeSource(t, fs, filepath.Join("layouts", "shortcodes", "myshortcode.html"), "SHORT")
-
-	buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{})
-
-	tests := []struct {
-		doc      string
-		expected string
-	}{
-		{filepath.FromSlash("public/sect/doc1.html"), "\n\n<h1 id=\"title\">title</h1>\n\n<p>some <em>content</em></p>\n"},
-		{filepath.FromSlash("public/sect/doc2.html"), "<!doctype html><html><body>more content</body></html>"},
-		{filepath.FromSlash("public/sect/doc3.html"), "\n\n<h1 id=\"doc3\">doc3</h1>\n\n<p><em>some</em> content</p>\n"},
-		{filepath.FromSlash("public/sect/doc4.html"), "\n\n<h1 id=\"doc4\">doc4</h1>\n\n<p><em>some content</em></p>\n"},
-		{filepath.FromSlash("public/sect/doc5.html"), "<!doctype html><html><head><script src=\"script.js\"></script></head><body>body5</body></html>"},
-		{filepath.FromSlash("public/sect/doc6.html"), "<!doctype html><html><head><script src=\"http://auth/bub/script.js\"></script></head><body>body5</body></html>"},
-		{filepath.FromSlash("public/doc7.html"), "<html><body>doc7 content</body></html>"},
-		{filepath.FromSlash("public/sect/doc8.html"), "\n\n<h1 id=\"title\">title</h1>\n\n<p>some <em>content</em></p>\n"},
-		{filepath.FromSlash("public/doc9.html"), "<html><body>doc9: SHORT</body></html>"},
-	}
-
-	for _, test := range tests {
-		file, err := fs.Destination.Open(test.doc)
-		if err != nil {
-			helpers.PrintFs(fs.Destination, "public", os.Stdout)
-			t.Fatalf("Did not find %s in target.", test.doc)
-		}
-
-		content := helpers.ReaderToString(file)
-
-		if content != test.expected {
-			t.Errorf("%s content expected:\n%q\ngot:\n%q", test.doc, test.expected, content)
-		}
-	}
 }
 
 func TestAbsURLify(t *testing.T) {
@@ -905,16 +838,16 @@ func TestWeightedTaxonomies(t *testing.T) {
 	writeSourcesToSource(t, "content", fs, sources...)
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{})
 
-	if s.Taxonomies["tags"]["a"][0].Page.Title() != "foo" {
-		t.Errorf("Pages in unexpected order, 'foo' expected first, got '%v'", s.Taxonomies["tags"]["a"][0].Page.Title())
+	if s.Taxonomies()["tags"]["a"][0].Page.Title() != "foo" {
+		t.Errorf("Pages in unexpected order, 'foo' expected first, got '%v'", s.Taxonomies()["tags"]["a"][0].Page.Title())
 	}
 
-	if s.Taxonomies["categories"]["d"][0].Page.Title() != "bar" {
-		t.Errorf("Pages in unexpected order, 'bar' expected first, got '%v'", s.Taxonomies["categories"]["d"][0].Page.Title())
+	if s.Taxonomies()["categories"]["d"][0].Page.Title() != "bar" {
+		t.Errorf("Pages in unexpected order, 'bar' expected first, got '%v'", s.Taxonomies()["categories"]["d"][0].Page.Title())
 	}
 
-	if s.Taxonomies["categories"]["e"][0].Page.Title() != "bza" {
-		t.Errorf("Pages in unexpected order, 'bza' expected first, got '%v'", s.Taxonomies["categories"]["e"][0].Page.Title())
+	if s.Taxonomies()["categories"]["e"][0].Page.Title() != "bza" {
+		t.Errorf("Pages in unexpected order, 'bza' expected first, got '%v'", s.Taxonomies()["categories"]["e"][0].Page.Title())
 	}
 }
 
@@ -940,6 +873,8 @@ func setupLinkingMockSite(t *testing.T) *Site {
 		{filepath.FromSlash("level2/level3/common.png"), ""},
 
 		{filepath.FromSlash("level2/level3/embedded.dot.md"), ""},
+
+		{filepath.FromSlash("leafbundle/index.md"), ""},
 	}
 
 	cfg, fs := newTestCfg()
@@ -1008,17 +943,40 @@ func TestRefLinking(t *testing.T) {
 		//test empty link, as well as fragment only link
 		{"", "", true, ""},
 	} {
-		checkLinkCase(site, test.link, currentPage, test.relative, test.outputFormat, test.expected, t, i)
 
-		//make sure fragment links are also handled
-		checkLinkCase(site, test.link+"#intro", currentPage, test.relative, test.outputFormat, test.expected+"#intro", t, i)
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			checkLinkCase(site, test.link, currentPage, test.relative, test.outputFormat, test.expected, t, i)
+
+			//make sure fragment links are also handled
+			checkLinkCase(site, test.link+"#intro", currentPage, test.relative, test.outputFormat, test.expected+"#intro", t, i)
+		})
 	}
 
 	// TODO: and then the failure cases.
 }
 
 func checkLinkCase(site *Site, link string, currentPage page.Page, relative bool, outputFormat string, expected string, t *testing.T, i int) {
+	t.Helper()
 	if out, err := site.refLink(link, currentPage, relative, outputFormat); err != nil || out != expected {
 		t.Fatalf("[%d] Expected %q from %q to resolve to %q, got %q - error: %s", i, link, currentPage.Path(), expected, out, err)
 	}
+}
+
+// https://github.com/gohugoio/hugo/issues/6952
+func TestRefIssues(t *testing.T) {
+	b := newTestSitesBuilder(t)
+	b.WithContent(
+		"post/b1/index.md", "---\ntitle: pb1\n---\nRef: {{< ref \"b2\" >}}",
+		"post/b2/index.md", "---\ntitle: pb2\n---\n",
+		"post/nested-a/content-a.md", "---\ntitle: ca\n---\n{{< ref \"content-b\" >}}",
+		"post/nested-b/content-b.md", "---\ntitle: ca\n---\n",
+	)
+	b.WithTemplates("index.html", `Home`)
+	b.WithTemplates("_default/single.html", `Content: {{ .Content }}`)
+
+	b.Build(BuildCfg{})
+
+	b.AssertFileContent("public/post/b1/index.html", `Content: <p>Ref: http://example.com/post/b2/</p>`)
+	b.AssertFileContent("public/post/nested-a/content-a/index.html", `Content: http://example.com/post/nested-b/content-b/`)
+
 }

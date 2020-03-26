@@ -10,15 +10,16 @@ import (
 
 // This is is just some helpers used to create some JSON used in the Hugo docs.
 func init() {
-	docsProvider := func() map[string]interface{} {
-		docs := make(map[string]interface{})
-
-		docs["formats"] = DefaultFormats
-		docs["layouts"] = createLayoutExamples()
-		return docs
+	docsProvider := func() docshelper.DocProvider {
+		return docshelper.DocProvider{
+			"output": map[string]interface{}{
+				"formats": DefaultFormats,
+				"layouts": createLayoutExamples(),
+			},
+		}
 	}
 
-	docshelper.AddDocProvider("output", docsProvider)
+	docshelper.AddDocProviderFunc(docsProvider)
 }
 
 func createLayoutExamples() interface{} {
@@ -44,12 +45,16 @@ func createLayoutExamples() interface{} {
 	}{
 		// Taxonomy output.LayoutDescriptor={categories category taxonomy en  false Type Section
 		{"Single page in \"posts\" section", LayoutDescriptor{Kind: "page", Type: "posts"}, HTMLFormat},
+		{"Base template for single page in \"posts\" section", LayoutDescriptor{Baseof: true, Kind: "page", Type: "posts"}, HTMLFormat},
 		{"Single page in \"posts\" section with layout set", LayoutDescriptor{Kind: "page", Type: "posts", Layout: demoLayout}, HTMLFormat},
+		{"Base template for single page in \"posts\" section with layout set", LayoutDescriptor{Baseof: true, Kind: "page", Type: "posts", Layout: demoLayout}, HTMLFormat},
 		{"AMP single page", LayoutDescriptor{Kind: "page", Type: "posts"}, AMPFormat},
 		{"AMP single page, French language", LayoutDescriptor{Kind: "page", Type: "posts", Lang: "fr"}, AMPFormat},
 		// All section or typeless pages gets "page" as type
 		{"Home page", LayoutDescriptor{Kind: "home", Type: "page"}, HTMLFormat},
+		{"Base template for home page", LayoutDescriptor{Baseof: true, Kind: "home", Type: "page"}, HTMLFormat},
 		{"Home page with type set", LayoutDescriptor{Kind: "home", Type: demoType}, HTMLFormat},
+		{"Base template for home page with type set", LayoutDescriptor{Baseof: true, Kind: "home", Type: demoType}, HTMLFormat},
 		{"Home page with layout set", LayoutDescriptor{Kind: "home", Type: "page", Layout: demoLayout}, HTMLFormat},
 		{`AMP home, French language"`, LayoutDescriptor{Kind: "home", Type: "page", Lang: "fr"}, AMPFormat},
 		{"JSON home", LayoutDescriptor{Kind: "home", Type: "page"}, JSONFormat},

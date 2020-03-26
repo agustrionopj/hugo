@@ -14,7 +14,9 @@
 package commands
 
 import (
+	"fmt"
 	"os"
+	"time"
 
 	"github.com/gohugoio/hugo/hugolib/paths"
 
@@ -45,12 +47,12 @@ func (b *commandsBuilder) addAll() *commandsBuilder {
 		b.newServerCmd(),
 		newVersionCmd(),
 		newEnvCmd(),
-		newConfigCmd(),
+		b.newConfigCmd(),
 		newCheckCmd(),
-		newDeployCmd(),
-		newConvertCmd(),
+		b.newDeployCmd(),
+		b.newConvertCmd(),
 		b.newNewCmd(),
-		newListCmd(),
+		b.newListCmd(),
 		newImportCmd(),
 		newGenCmd(),
 		createReleaser(),
@@ -109,6 +111,12 @@ func (b *commandsBuilder) newBuilderCmd(cmd *cobra.Command) *baseBuilderCmd {
 	return bcmd
 }
 
+func (b *commandsBuilder) newBuilderBasicCmd(cmd *cobra.Command) *baseBuilderCmd {
+	bcmd := &baseBuilderCmd{commandsBuilder: b, baseCmd: &baseCmd{cmd: cmd}}
+	bcmd.hugoBuilderCommon.handleCommonBuilderFlags(cmd)
+	return bcmd
+}
+
 func (c *baseCmd) flagsToConfig(cfg config.Provider) {
 	initializeFlags(c.cmd, cfg)
 }
@@ -146,6 +154,7 @@ built with love by spf13 and friends in Go.
 
 Complete documentation is available at http://gohugo.io/.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			defer cc.timeTrack(time.Now(), "Total")
 			cfgInit := func(c *commandeer) error {
 				if cc.buildWatch {
 					c.Set("disableLiveReload", true)
@@ -216,6 +225,14 @@ type hugoBuilderCommon struct {
 	logFile string
 }
 
+func (cc *hugoBuilderCommon) timeTrack(start time.Time, name string) {
+	if cc.quiet {
+		return
+	}
+	elapsed := time.Since(start)
+	fmt.Printf("%s in %v ms\n", name, int(1000*elapsed.Seconds()))
+}
+
 func (cc *hugoBuilderCommon) getConfigDir(baseDir string) string {
 	if cc.cfgDir != "" {
 		return paths.AbsPathify(baseDir, cc.cfgDir)
@@ -234,6 +251,11 @@ func (cc *hugoBuilderCommon) getEnvironment(isServer bool) string {
 	}
 
 	if v, found := os.LookupEnv("HUGO_ENVIRONMENT"); found {
+		return v
+	}
+
+	//  Used by Netlify and Forestry
+	if v, found := os.LookupEnv("HUGO_ENV"); found {
 		return v
 	}
 

@@ -24,6 +24,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+
+	"github.com/gobwas/glob"
+	hglob "github.com/gohugoio/hugo/hugofs/glob"
+
+	"github.com/gohugoio/hugo/hugofs"
 
 	"github.com/gohugoio/hugo/hugofs/files"
 
@@ -259,7 +265,36 @@ func (c *Client) Vendor() error {
 
 // Get runs "go get" with the supplied arguments.
 func (c *Client) Get(args ...string) error {
-	if err := c.runGo(context.Background(), os.Stdout, append([]string{"get"}, args...)...); err != nil {
+	if len(args) == 0 || (len(args) == 1 && args[0] == "-u") {
+		update := len(args) != 0
+
+		// We need to be explicit about the modules to get.
+		for _, m := range c.moduleConfig.Imports {
+			if !isProbablyModule(m.Path) {
+				// Skip themes/components stored below /themes etc.
+				// There may be false positives in the above, but those
+				// should be rare, and they will fail below with an
+				// "cannot find module providing ..." message.
+				continue
+			}
+			var args []string
+			if update {
+				args = []string{"-u"}
+			}
+			args = append(args, m.Path)
+			if err := c.get(args...); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	return c.get(args...)
+}
+
+func (c *Client) get(args ...string) error {
+	if err := c.runGo(context.Background(), c.logger.Out, append([]string{"get"}, args...)...); err != nil {
 		errors.Wrapf(err, "failed to get %q", args)
 	}
 	return nil
@@ -269,7 +304,7 @@ func (c *Client) Get(args ...string) error {
 // If path is empty, Go will try to guess.
 // If this succeeds, this project will be marked as Go Module.
 func (c *Client) Init(path string) error {
-	err := c.runGo(context.Background(), os.Stdout, "mod", "init", path)
+	err := c.runGo(context.Background(), c.logger.Out, "mod", "init", path)
 	if err != nil {
 		return errors.Wrap(err, "failed to init modules")
 	}
@@ -277,6 +312,70 @@ func (c *Client) Init(path string) error {
 	c.GoModulesFilename = filepath.Join(c.ccfg.WorkingDir, goModFilename)
 
 	return nil
+}
+
+var verifyErrorDirRe = regexp.MustCompile(`dir has been modified \((.*?)\)`)
+
+// Verify checks that the dependencies of the current module,
+// which are stored in a local downloaded source cache, have not been
+// modified since being downloaded.
+func (c *Client) Verify(clean bool) error {
+	// TODO1 add path to mod clean
+	err := c.runVerify()
+
+	if err != nil {
+		if clean {
+			m := verifyErrorDirRe.FindAllStringSubmatch(err.Error(), -1)
+			if m != nil {
+				for i := 0; i < len(m); i++ {
+					c, err := hugofs.MakeReadableAndRemoveAllModulePkgDir(c.fs, m[i][1])
+					if err != nil {
+						return err
+					}
+					fmt.Println("Cleaned", c)
+				}
+			}
+			// Try to verify it again.
+			err = c.runVerify()
+		}
+	}
+	return err
+}
+
+func (c *Client) Clean(pattern string) error {
+	mods, err := c.listGoMods()
+	if err != nil {
+		return err
+	}
+
+	var g glob.Glob
+
+	if pattern != "" {
+		var err error
+		g, err = hglob.GetGlob(pattern)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, m := range mods {
+		if m.Replace != nil || m.Main {
+			continue
+		}
+
+		if g != nil && !g.Match(m.Path) {
+			continue
+		}
+		_, err = hugofs.MakeReadableAndRemoveAllModulePkgDir(c.fs, m.Dir)
+		if err == nil {
+			c.logger.FEEDBACK.Printf("hugo: cleaned module cache for %q", m.Path)
+		}
+	}
+	return err
+}
+
+func (c *Client) runVerify() error {
+	return c.runGo(context.Background(), ioutil.Discard, "mod", "verify")
 }
 
 func isProbablyModule(path string) bool {
@@ -410,6 +509,8 @@ func (c *Client) runGo(
 		return nil
 	}
 
+	//defer c.logger.PrintTimer(time.Now(), fmt.Sprint(args))
+
 	stderr := new(bytes.Buffer)
 	cmd := exec.CommandContext(ctx, "go", args...)
 
@@ -422,6 +523,11 @@ func (c *Client) runGo(
 		if ee, ok := err.(*exec.Error); ok && ee.Err == exec.ErrNotFound {
 			c.goBinaryStatus = goBinaryStatusNotFound
 			return nil
+		}
+
+		if strings.Contains(stderr.String(), "invalid version: unknown revision") {
+			// See https://github.com/gohugoio/hugo/issues/6825
+			c.logger.FEEDBACK.Println(`hugo: you need to manually edit go.mod to resolve the unknown revision.`)
 		}
 
 		_, ok := err.(*exec.ExitError)

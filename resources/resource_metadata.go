@@ -18,6 +18,7 @@ import (
 	"strconv"
 
 	"github.com/gohugoio/hugo/hugofs/glob"
+	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/resources/resource"
 
 	"github.com/pkg/errors"
@@ -42,6 +43,7 @@ type metaAssignerProvider interface {
 type metaAssigner interface {
 	setTitle(title string)
 	setName(name string)
+	setMediaType(mediaType media.Type)
 	updateParams(params map[string]interface{})
 }
 
@@ -127,7 +129,7 @@ func AssignMetadata(metadata []map[string]interface{}, resources ...resource.Res
 
 				params, found := meta["params"]
 				if found {
-					m := cast.ToStringMap(params)
+					m := maps.ToStringMap(params)
 					// Needed for case insensitive fetching of params values
 					maps.ToLower(m)
 					ma.updateParams(m)

@@ -47,9 +47,14 @@ weight = 2
 linkedin = "https://linkedin.com/fr/whoever"
 [languages.fr.params.navigation]
 help  = "Aide"
+
+[languages.ar]
+title = "مدونتي"
+weight = 2
+languagedirection = "rtl"
 {{< /code-toggle >}}
 
-Anything not defined in a `languages` block will fall back to the global value for that key (e.g., `copyright` for the English `en` language). This also works for `params`, as demonstrated witgh `help` above: You will get the value `Aide` in French and `Help` in all the languages without this parameter set.
+Anything not defined in a `languages` block will fall back to the global value for that key (e.g., `copyright` for the English `en` language). This also works for `params`, as demonstrated with `help` above: You will get the value `Aide` in French and `Help` in all the languages without this parameter set.
 
 With the configuration above, all content, sitemap, RSS feeds, paginations,
 and taxonomy pages will be rendered below `/` in English (your default content language) and then below `/fr` in French.

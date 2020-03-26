@@ -225,15 +225,12 @@ func LoadConfig(d ConfigSourceDescriptor, doWithConfig ...func(cfg config.Provid
 	}
 
 	_, modulesConfigFiles, err := l.collectModules(modulesConfig, v, collectHook)
-	if err != nil {
-		return v, configFiles, err
-	}
 
-	if len(modulesConfigFiles) > 0 {
+	if err == nil && len(modulesConfigFiles) > 0 {
 		configFiles = append(configFiles, modulesConfigFiles...)
 	}
 
-	return v, configFiles, nil
+	return v, configFiles, err
 
 }
 
@@ -465,9 +462,6 @@ func (l configLoader) collectModules(modConfig modules.Config, v1 *viper.Viper, 
 	v1.Set("modulesClient", modulesClient)
 
 	moduleConfig, err := modulesClient.Collect()
-	if err != nil {
-		return nil, nil, err
-	}
 
 	// Avoid recreating these later.
 	v1.Set("allModules", moduleConfig.ActiveModules)
@@ -478,7 +472,7 @@ func (l configLoader) collectModules(modConfig modules.Config, v1 *viper.Viper, 
 		configFilenames = append(configFilenames, moduleConfig.GoModulesFilename)
 	}
 
-	return moduleConfig.ActiveModules, configFilenames, nil
+	return moduleConfig.ActiveModules, configFilenames, err
 
 }
 
@@ -564,11 +558,6 @@ func (configLoader) mergeStringMapKeepLeft(rootKey, key string, v1, v2 config.Pr
 
 func loadDefaultSettingsFor(v *viper.Viper) error {
 
-	c, err := helpers.NewContentSpec(v)
-	if err != nil {
-		return err
-	}
-
 	v.RegisterAlias("indexes", "taxonomies")
 
 	/*
@@ -602,11 +591,6 @@ func loadDefaultSettingsFor(v *viper.Viper) error {
 	v.SetDefault("taxonomies", map[string]string{"tag": "tags", "category": "categories"})
 	v.SetDefault("permalinks", make(map[string]string))
 	v.SetDefault("sitemap", config.Sitemap{Priority: -1, Filename: "sitemap.xml"})
-	v.SetDefault("pygmentsStyle", "monokai")
-	v.SetDefault("pygmentsUseClasses", false)
-	v.SetDefault("pygmentsCodeFences", false)
-	v.SetDefault("pygmentsUseClassic", false)
-	v.SetDefault("pygmentsOptions", "")
 	v.SetDefault("disableLiveReload", false)
 	v.SetDefault("pluralizeListTitles", true)
 	v.SetDefault("forceSyncStatic", false)
@@ -616,7 +600,6 @@ func loadDefaultSettingsFor(v *viper.Viper) error {
 	v.SetDefault("paginate", 10)
 	v.SetDefault("paginatePath", "page")
 	v.SetDefault("summaryLength", 70)
-	v.SetDefault("blackfriday", c.BlackFriday)
 	v.SetDefault("rssLimit", -1)
 	v.SetDefault("sectionPagesMenu", "")
 	v.SetDefault("disablePathToLower", false)
@@ -631,7 +614,7 @@ func loadDefaultSettingsFor(v *viper.Viper) error {
 	v.SetDefault("disableAliases", false)
 	v.SetDefault("debug", false)
 	v.SetDefault("disableFastRender", false)
-	v.SetDefault("timeout", 15000) // 15 seconds
+	v.SetDefault("timeout", "30s")
 	v.SetDefault("enableInlineShortcodes", false)
 
 	return nil
